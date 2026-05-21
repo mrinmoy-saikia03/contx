@@ -56,3 +56,29 @@ def test_parse_symbol_ref_rejects_double_separator():
     import pytest
     with pytest.raises(ValueError, match="only one"):
         parse_symbol_ref("a::b::c")
+
+
+def test_sidecar_path_rejects_relative_with_dotdot():
+    import pytest
+    repo = Path("/r")
+    src = Path("../outside/main.py")
+    with pytest.raises(ValueError, match="must not contain '..'"):
+        sidecar_path_for_source(repo, src)
+
+
+def test_parse_symbol_ref_rejects_empty():
+    import pytest
+    with pytest.raises(ValueError, match="must not be empty"):
+        parse_symbol_ref("")
+
+
+def test_parse_symbol_ref_rejects_empty_file_part():
+    import pytest
+    with pytest.raises(ValueError, match="empty file path"):
+        parse_symbol_ref("::foo")
+
+
+def test_parse_symbol_ref_rejects_empty_symbol_part():
+    import pytest
+    with pytest.raises(ValueError, match="empty symbol"):
+        parse_symbol_ref("file::")
