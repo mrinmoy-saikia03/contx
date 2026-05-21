@@ -29,7 +29,7 @@ def test_init_outside_git_repo_fails(tmp_path: Path, monkeypatch: pytest.MonkeyP
     monkeypatch.chdir(tmp_path)
     result = runner.invoke(app, ["init"])
     assert result.exit_code != 0
-    assert "not inside a git repo" in result.stdout.lower()
+    assert "not inside a git repo" in result.output.lower()
 
 
 def test_append_writes_entry(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
@@ -62,7 +62,7 @@ def test_append_requires_init(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
         ["append", "--ref", "src/foo.py", "--event", "created", "--rationale", "x"],
     )
     assert result.exit_code != 0
-    assert "not initialized" in result.stdout.lower()
+    assert "not initialized" in result.output.lower()
 
 
 def test_append_file_level_when_no_symbol(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
@@ -134,3 +134,23 @@ def test_log_filters_by_symbol(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
     assert "BAR-1" in result.stdout
     assert "BAZ-1" not in result.stdout
     assert "FILE" not in result.stdout
+
+
+def test_append_rejects_invalid_event(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.chdir(tmp_repo)
+    runner.invoke(app, ["init"])
+    result = runner.invoke(app, [
+        "append", "--ref", "src/foo.py",
+        "--event", "explodified",
+        "--rationale", "x",
+    ])
+    assert result.exit_code == 2
+    assert "event must be" in result.output.lower()
+
+
+def test_show_rejects_bad_ref(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.chdir(tmp_repo)
+    runner.invoke(app, ["init"])
+    result = runner.invoke(app, ["show", "a::b::c"])
+    assert result.exit_code == 2
+    assert "only one" in result.output.lower()

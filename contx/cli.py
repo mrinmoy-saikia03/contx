@@ -25,7 +25,7 @@ def _resolve_repo() -> Path:
     try:
         return find_repo_root(Path.cwd())
     except NotInRepoError as exc:
-        typer.echo(f"error: {exc}")
+        typer.echo(f"error: {exc}", err=True)
         raise typer.Exit(code=2)
 
 
@@ -75,22 +75,26 @@ def append(
 
     repo = _resolve_repo()
     if not is_initialized(repo):
-        typer.echo("error: contx not initialized for this repo. Run `contx init` first.")
+        typer.echo("error: contx not initialized for this repo. Run `contx init` first.", err=True)
         raise typer.Exit(code=2)
 
-    file_path, symbol = parse_symbol_ref(ref)
-    entry = Entry(
-        id=str(ULID()),
-        kind="symbol" if symbol else "file",
-        symbol=symbol,
-        event=event,
-        rationale=rationale,
-        tags=list(tag or []),
-        author=_git_author(repo),
-        timestamp=datetime.now(timezone.utc),
-        agent=agent,  # type: ignore[arg-type]
-        related=list(related or []),
-    )
+    try:
+        file_path, symbol = parse_symbol_ref(ref)
+        entry = Entry(
+            id=str(ULID()),
+            kind="symbol" if symbol else "file",
+            symbol=symbol,
+            event=event,
+            rationale=rationale,
+            tags=list(tag or []),
+            author=_git_author(repo),
+            timestamp=datetime.now(timezone.utc),
+            agent=agent,  # type: ignore[arg-type]
+            related=list(related or []),
+        )
+    except ValueError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=2)
     sidecar = append_entry(repo, file_path, entry)
     typer.echo(f"appended entry {entry.id} → {sidecar.relative_to(repo)}")
 
@@ -100,10 +104,14 @@ def show(ref: str = typer.Argument(..., help="file path, or file::symbol")) -> N
     """Print the folded current intent for a file or symbol."""
     repo = _resolve_repo()
     if not is_initialized(repo):
-        typer.echo("error: contx not initialized for this repo. Run `contx init` first.")
+        typer.echo("error: contx not initialized for this repo. Run `contx init` first.", err=True)
         raise typer.Exit(code=2)
 
-    file_path, symbol = parse_symbol_ref(ref)
+    try:
+        file_path, symbol = parse_symbol_ref(ref)
+    except ValueError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=2)
     entries = read_entries(repo, file_path)
     folded = fold_entries(entries)
 
@@ -132,10 +140,14 @@ def log_cmd(ref: str = typer.Argument(..., help="file path, or file::symbol")) -
     """Print the full append-only log for a file or symbol."""
     repo = _resolve_repo()
     if not is_initialized(repo):
-        typer.echo("error: contx not initialized for this repo. Run `contx init` first.")
+        typer.echo("error: contx not initialized for this repo. Run `contx init` first.", err=True)
         raise typer.Exit(code=2)
 
-    file_path, symbol = parse_symbol_ref(ref)
+    try:
+        file_path, symbol = parse_symbol_ref(ref)
+    except ValueError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=2)
     entries = read_entries(repo, file_path)
     if symbol is not None:
         entries = [e for e in entries if e.symbol == symbol]

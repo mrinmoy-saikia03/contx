@@ -107,3 +107,21 @@ def test_fold_skips_deleted_symbol():
     b = _make_entry(symbol="foo", event="deleted", rationale="removed — superseded by bar")
     folded = fold_entries([a, b])
     assert "foo" not in folded.symbols
+
+
+def test_read_entries_skips_corrupt_line(tmp_repo: Path):
+    e = _make_entry(rationale="good entry")
+    append_entry(tmp_repo, "src/foo.py", e)
+    # Manually corrupt the sidecar by appending bad lines
+    sidecar = tmp_repo / ".contx" / "src" / "foo.py.jsonl"
+    with sidecar.open("a") as f:
+        f.write("{not valid json\n")
+        f.write('{"id":"x","kind":"file","event":"created"}\n')  # missing required fields
+    # read_entries should return only the one good entry and warn about the others
+    import warnings
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        entries = read_entries(tmp_repo, "src/foo.py")
+    assert len(entries) == 1
+    assert entries[0].rationale == "good entry"
+    assert len(w) == 2  # two corrupt lines, two warnings

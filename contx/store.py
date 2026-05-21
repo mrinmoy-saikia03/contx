@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+import warnings
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from contx.entry import Entry
@@ -24,21 +27,25 @@ def read_entries(repo_root: Path, source_rel_path: str) -> list[Entry]:
     """Read all entries from the sidecar for `source_rel_path`, in file order.
 
     Returns [] if the sidecar doesn't exist.
+    Corrupt lines are skipped with a warning rather than raising.
     """
     sidecar = sidecar_path_for_source(repo_root, Path(source_rel_path))
     if not sidecar.is_file():
         return []
     out: list[Entry] = []
     with sidecar.open("r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
+        for lineno, raw in enumerate(f, start=1):
+            line = raw.strip()
             if not line:
                 continue
-            out.append(Entry.from_jsonl_line(line))
+            try:
+                out.append(Entry.from_jsonl_line(line))
+            except (json.JSONDecodeError, KeyError, ValueError) as exc:
+                warnings.warn(
+                    f"{sidecar}:{lineno}: skipping corrupt entry: {exc}",
+                    stacklevel=2,
+                )
     return out
-
-
-from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
