@@ -36,3 +36,40 @@ def read_entries(repo_root: Path, source_rel_path: str) -> list[Entry]:
                 continue
             out.append(Entry.from_jsonl_line(line))
     return out
+
+
+from dataclasses import dataclass, field
+
+
+@dataclass(frozen=True)
+class FoldedIntent:
+    """The 'current view' of a file's intent after folding all entries."""
+    file_intent: str | None
+    symbols: dict[str, str] = field(default_factory=dict)
+
+
+def fold_entries(entries: list[Entry]) -> FoldedIntent:
+    """Collapse an append-only log into the current intent view.
+
+    Rules:
+    - Entries are processed in file order (already sorted by caller).
+    - For kind=file: latest rationale wins.
+    - For kind=symbol: latest rationale wins per symbol, EXCEPT event=deleted
+      removes the symbol entirely.
+    - rename_out / move_out events remove the entry under the old symbol;
+      the new symbol's history lives in a different sidecar.
+    """
+    file_intent: str | None = None
+    symbols: dict[str, str] = {}
+    for e in entries:
+        if e.kind == "file":
+            if e.event == "deleted":
+                file_intent = None
+            else:
+                file_intent = e.rationale
+        elif e.kind == "symbol" and e.symbol is not None:
+            if e.event in ("deleted", "renamed_out", "moved_out"):
+                symbols.pop(e.symbol, None)
+            else:
+                symbols[e.symbol] = e.rationale
+    return FoldedIntent(file_intent=file_intent, symbols=symbols)

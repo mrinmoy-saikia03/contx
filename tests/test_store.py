@@ -63,3 +63,47 @@ def test_read_entries_returns_in_file_order(tmp_repo: Path):
 
 def test_read_entries_missing_sidecar_returns_empty(tmp_repo: Path):
     assert read_entries(tmp_repo, "src/nope.py") == []
+
+
+from contx.store import fold_entries, FoldedIntent
+
+
+def test_fold_empty_returns_empty_intent():
+    folded = fold_entries([])
+    assert folded.file_intent is None
+    assert folded.symbols == {}
+
+
+def test_fold_collects_file_level_intent():
+    file_e = _make_entry(symbol=None, event="created", rationale="auth module")
+    folded = fold_entries([file_e])
+    assert folded.file_intent == "auth module"
+
+
+def test_fold_latest_file_intent_wins():
+    e1 = _make_entry(symbol=None, event="created", rationale="v1")
+    e2 = _make_entry(symbol=None, event="modified", rationale="v2 — pivot to SSO")
+    folded = fold_entries([e1, e2])
+    assert folded.file_intent == "v2 — pivot to SSO"
+
+
+def test_fold_collects_symbol_intent_keyed_by_symbol():
+    a = _make_entry(symbol="foo", rationale="foo why")
+    b = _make_entry(symbol="bar", rationale="bar why")
+    folded = fold_entries([a, b])
+    assert folded.symbols["foo"] == "foo why"
+    assert folded.symbols["bar"] == "bar why"
+
+
+def test_fold_latest_symbol_intent_wins():
+    a = _make_entry(symbol="foo", event="created", rationale="initial")
+    b = _make_entry(symbol="foo", event="modified", rationale="updated for incident X")
+    folded = fold_entries([a, b])
+    assert folded.symbols["foo"] == "updated for incident X"
+
+
+def test_fold_skips_deleted_symbol():
+    a = _make_entry(symbol="foo", event="created", rationale="initial")
+    b = _make_entry(symbol="foo", event="deleted", rationale="removed — superseded by bar")
+    folded = fold_entries([a, b])
+    assert "foo" not in folded.symbols
