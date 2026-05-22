@@ -29,3 +29,27 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+from contx import mcp_tools
+
+
+@app.tool()
+def contx_query(file: str, symbol: str | None = None) -> dict:
+    """Read the folded intent and full log for a file or symbol.
+
+    Use this BEFORE editing a file to learn its existing context.
+
+    Args:
+        file: Path to the source file, relative to the repo root.
+        symbol: Optional dotted symbol path within the file (e.g. "Class.method").
+                When omitted, returns the file-level intent and lists all symbols.
+
+    Returns:
+        file_intent: The folded "current" file-level rationale, or None.
+        symbols: Dict mapping symbol name to its current rationale.
+        symbol_intent: Present only when symbol is provided.
+        log: Raw entries (filtered by symbol if specified) in file order.
+    """
+    repo = resolve_repo_root()
+    return mcp_tools.query(repo, file, symbol=symbol)
