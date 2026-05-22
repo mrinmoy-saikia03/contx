@@ -313,6 +313,23 @@ def uninstall_skill_cmd() -> None:
     typer.echo(f"removed contx skill from {home / 'skills' / 'contx'}")
 
 
+@app.command()
+def serve(
+    port: int = typer.Option(4242, "--port", "-p", help="Port to bind (default 4242)"),
+    host: str = typer.Option("127.0.0.1", "--host", help="Bind host (default 127.0.0.1)"),
+) -> None:
+    """Launch the local read-only web UI."""
+    import uvicorn
+    from contx.web.app import create_app
+    repo = _resolve_repo()
+    if not is_initialized(repo):
+        typer.echo("error: contx not initialized for this repo. Run `contx init` first.", err=True)
+        raise typer.Exit(code=2)
+    web_app = create_app(repo_root=repo)
+    typer.echo(f"contx serving on http://{host}:{port}")
+    uvicorn.run(web_app, host=host, port=port, log_level="warning")
+
+
 @app.command(name="_precommit-check", hidden=True)
 def _precommit_check() -> None:
     """Internal: invoked by the pre-commit hook.

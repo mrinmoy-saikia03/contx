@@ -313,3 +313,11 @@ def test_uninstall_skill_command(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch
     result = runner.invoke(app, ["uninstall-skill"])
     assert result.exit_code == 0
     assert not (tmp_path / "fake_claude" / "skills" / "contx").exists()
+
+
+def test_serve_command_imports_cleanly(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.chdir(tmp_repo)
+    runner.invoke(app, ["init"])
+    result = runner.invoke(app, ["serve", "--help"])
+    assert result.exit_code == 0
+    assert "port" in result.output.lower()
