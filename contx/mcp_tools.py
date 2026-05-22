@@ -13,6 +13,7 @@ from pathlib import Path
 from ulid import ULID
 
 from contx.entry import Entry
+from contx.search import search_entries
 from contx.store import append_entry, fold_entries, read_entries
 
 
@@ -78,3 +79,8 @@ def append(
         "entry": _entry_to_dict(entry),
         "sidecar": str(sidecar.relative_to(repo_root)),
     }
+
+
+def search(repo_root: Path, query: str, limit: int | None = None) -> list[dict]:
+    """Substring search across all contx entries."""
+    return search_entries(repo_root, query, limit=limit)

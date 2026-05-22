@@ -97,3 +97,20 @@ def contx_append(
         related=related,
         agent="claude-code",
     )
+
+
+@app.tool()
+def contx_search(query: str, limit: int | None = 50) -> list[dict]:
+    """Search for context entries by substring (case-insensitive).
+
+    Matches against entry rationale and tags. Returns up to `limit` results.
+
+    Args:
+        query: Free-text substring to search for.
+        limit: Max results to return (default 50).
+
+    Returns:
+        A list of {file, entry} dicts in walk order.
+    """
+    repo = resolve_repo_root()
+    return mcp_tools.search(repo, query, limit=limit)
