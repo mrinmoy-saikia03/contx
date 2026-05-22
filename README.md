@@ -24,6 +24,7 @@ contx log src/foo.py
 | `contx log <ref>` | Print the full append-only history. |
 | `contx draft [--from-transcript]` | Interactive editor for drifted files; appends entries and re-stages `.contx/`. |
 | `contx install-hook` / `contx uninstall-hook` | Install or remove the pre-commit hook (`contx init` installs it by default; use `init --no-hook` to skip). |
+| `contx install-skill` / `contx uninstall-skill` | Install or remove the Claude Code skill at `~/.claude/skills/contx/`. |
 | `contx version` | Print version. |
 
 `<ref>` is either `path/to/file.py` (file-level) or `path/to/file.py::Class.method` (symbol-level).
@@ -71,6 +72,37 @@ By default the server uses `os.getcwd()` to find the repo root (walks up looking
 | `contx_audit` | Find orphan sidecars and untracked source files. |
 
 The intended workflow: AI agents call `contx_query` before editing to learn existing context, then call `contx_append` (or `contx_rename` / `contx_delete`) in the same turn as their `Edit` / `Write` tool calls. The CLI is for humans.
+
+## Claude Code skill
+
+contx ships a Claude Code skill that enforces the workflow rules: query existing context before editing, append context in the same turn as code edits, handle renames/deletes through the MCP tools.
+
+### Install
+
+```bash
+contx install-skill
+```
+
+This copies `skills/contx/SKILL.md` to `~/.claude/skills/contx/`. Re-running the command updates to the latest version (overwrites). Override the destination with `CONTX_CLAUDE_HOME=/some/path contx install-skill` if you keep Claude config elsewhere.
+
+### What the skill enforces
+
+When working in a repo with `.contx/`, Claude will:
+- Call `contx_query` before editing a tracked file (to learn existing intent).
+- Call `contx_append` in the same turn as any `Edit`/`Write` on a tracked file.
+- Call `contx_rename` *before* applying a code rename.
+- Call `contx_delete` with a rationale when removing code.
+- Ask the user for the *why* if it isn't already clear in the conversation (never invent a rationale).
+
+The skill activates on the user's `/contx` invocation, or you can wire a SessionStart hook to load it automatically when `.contx/` is detected (not done by `install-skill` — that's intentional, to keep user-level Claude Code settings explicit).
+
+### Uninstall
+
+```bash
+contx uninstall-skill
+```
+
+Removes `~/.claude/skills/contx/` (the contx skill directory only — other skills untouched).
 
 ## Pre-commit hook
 
@@ -139,5 +171,5 @@ Each line of the sidecar is one entry: `{id, kind, symbol, event, rationale, tag
 
 ## Status
 
-Plan 1 (storage core + CLI), Plan 2 (MCP server), Plan 3 (pre-commit hook), and Plan 3b (`contx draft` interactive command) shipped. Plans 4-5 (Claude Code skill, web UI) pending. See `docs/plans/` and `docs/BACKLOG.md`.
+Plan 1 (storage core + CLI), Plan 2 (MCP server), Plan 3 (pre-commit hook), Plan 3b (`contx draft`), and Plan 4 (Claude Code skill) shipped. Plan 5 (web UI) and backlog items pending. See `docs/plans/` and `docs/BACKLOG.md`.
 
