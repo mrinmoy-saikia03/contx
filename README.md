@@ -173,6 +173,21 @@ Opens a read-only web viewer. Routes:
 
 No auth, no edits, no JS bundle — server-rendered HTML with a sprinkle of htmx. The intent map travels with git: anyone who clones the repo can `contx serve` and see why every function is the way it is.
 
+## `.contxignore`
+
+`contx init` creates a `.contxignore` at the repo root (gitignore-style syntax) with sensible defaults: `**/node_modules/**`, `**/__tests__/**`, `**/.venv/**`, `**/venv/**`, `**/dist/**`, `**/build/**`, `**/.contx/**`. Add to it whatever your team wants contx to skip.
+
+Patterns from `.contxignore` are **additive** to the `ignore` field in `.contx/config.json`. The effective ignore set is the union of both. config.json holds the per-init defaults; `.contxignore` is where you put ongoing per-repo exclusions next to `.gitignore`.
+
+Supported syntax (subset of gitignore):
+- `*` — match any single path segment
+- `**` — match any number of segments
+- `dir/file.py` — exact path
+- `# comment` — ignored
+- Negation (`!`) is not yet supported.
+
+Affects: drift detection (pre-commit hook), `contx_audit`, and any future tooling that walks the source tree.
+
 ## Storage layout
 
 contx stores entries in JSONL sidecars under `.contx/`, mirroring the source tree:
@@ -189,5 +204,5 @@ Each line of the sidecar is one entry: `{id, kind, symbol, event, rationale, tag
 
 ## Status
 
-Plans 1–5 shipped: storage + CLI, MCP server, pre-commit hook, `contx draft`, Claude Code skill, local web UI. Backlog items (`.contxignore`, hardening notes) pending. See `docs/plans/` and `docs/BACKLOG.md`.
+Plans 1–5 plus backlog item B1 (`.contxignore`) shipped: storage + CLI, MCP server, pre-commit hook, `contx draft`, Claude Code skill, local web UI, and per-repo ignore file. Remaining backlog items: tuple-vs-list immutability on `Entry.tags`/`related`, SessionStart skill auto-load, `__main__.py` test coverage. See `docs/plans/` and `docs/BACKLOG.md`.
 
