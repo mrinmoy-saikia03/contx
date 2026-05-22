@@ -46,3 +46,22 @@ def test_config_rejects_invalid_granularity():
             require_rationale_on_create=True,
             extract_rationale_on_modify=True,
         )
+
+
+def test_default_config_requires_context_on_commit():
+    cfg = default_config()
+    assert cfg.require_context_on_commit is True
+
+
+def test_config_can_disable_commit_enforcement(tmp_repo: Path):
+    cfg = Config(
+        granularity="both",
+        languages=["py"],
+        ignore=[],
+        require_rationale_on_create=True,
+        extract_rationale_on_modify=True,
+        require_context_on_commit=False,
+    )
+    save_config(tmp_repo, cfg)
+    loaded = load_config(tmp_repo)
+    assert loaded.require_context_on_commit is False

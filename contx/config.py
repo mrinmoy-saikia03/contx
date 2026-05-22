@@ -33,6 +33,7 @@ class Config:
     ignore: list[str]
     require_rationale_on_create: bool
     extract_rationale_on_modify: bool
+    require_context_on_commit: bool = True
 
     def __post_init__(self) -> None:
         if self.granularity not in _VALID_GRANULARITY:
@@ -48,6 +49,7 @@ def default_config() -> Config:
         ignore=list(DEFAULT_IGNORE),
         require_rationale_on_create=True,
         extract_rationale_on_modify=True,
+        require_context_on_commit=True,
     )
 
 
@@ -71,4 +73,5 @@ def load_config(repo_root: Path) -> Config:
         ignore=list(data["ignore"]),
         require_rationale_on_create=bool(data["require_rationale_on_create"]),
         extract_rationale_on_modify=bool(data["extract_rationale_on_modify"]),
+        require_context_on_commit=bool(data.get("require_context_on_commit", True)),
     )
