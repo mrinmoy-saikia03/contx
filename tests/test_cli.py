@@ -206,3 +206,35 @@ def test_precommit_check_passes_on_uninitialized(tmp_repo: Path, monkeypatch: py
     subprocess.run(["git", "add", "src/foo.py"], cwd=tmp_repo, check=True)
     result = runner.invoke(app, ["_precommit-check"])
     assert result.exit_code == 0
+
+
+def test_init_installs_hook_by_default(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.chdir(tmp_repo)
+    runner.invoke(app, ["init"])
+    hook = tmp_repo / ".git" / "hooks" / "pre-commit"
+    assert hook.is_file()
+
+
+def test_init_skips_hook_with_flag(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.chdir(tmp_repo)
+    runner.invoke(app, ["init", "--no-hook"])
+    hook = tmp_repo / ".git" / "hooks" / "pre-commit"
+    assert not hook.is_file()
+
+
+def test_install_hook_command(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.chdir(tmp_repo)
+    runner.invoke(app, ["init", "--no-hook"])
+    result = runner.invoke(app, ["install-hook"])
+    assert result.exit_code == 0
+    hook = tmp_repo / ".git" / "hooks" / "pre-commit"
+    assert hook.is_file()
+
+
+def test_uninstall_hook_command(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.chdir(tmp_repo)
+    runner.invoke(app, ["init"])
+    result = runner.invoke(app, ["uninstall-hook"])
+    assert result.exit_code == 0
+    hook = tmp_repo / ".git" / "hooks" / "pre-commit"
+    assert not hook.is_file()

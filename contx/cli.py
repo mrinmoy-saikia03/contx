@@ -11,6 +11,11 @@ from contx import __version__
 from contx.config import default_config, save_config
 from contx.entry import Entry
 from contx.paths import parse_symbol_ref
+from contx.hooks import (
+    install_pre_commit_hook,
+    is_pre_commit_hook_installed,
+    uninstall_pre_commit_hook,
+)
 from contx.repo import (
     NotInRepoError,
     find_repo_root,
@@ -36,14 +41,38 @@ def version() -> None:
 
 
 @app.command()
-def init() -> None:
+def init(
+    no_hook: bool = typer.Option(False, "--no-hook", help="Skip installing the pre-commit hook"),
+) -> None:
     """Initialize contx for the current git repo."""
     repo = _resolve_repo()
     if is_initialized(repo):
         typer.echo(f"contx already initialized at {repo / '.contx'}")
+        if not no_hook and not is_pre_commit_hook_installed(repo):
+            install_pre_commit_hook(repo)
+            typer.echo(f"installed pre-commit hook at {repo / '.git' / 'hooks' / 'pre-commit'}")
         return
     save_config(repo, default_config())
     typer.echo(f"initialized contx at {repo / '.contx'}")
+    if not no_hook:
+        install_pre_commit_hook(repo)
+        typer.echo(f"installed pre-commit hook at {repo / '.git' / 'hooks' / 'pre-commit'}")
+
+
+@app.command(name="install-hook")
+def install_hook_cmd() -> None:
+    """Install the contx pre-commit hook in the current repo."""
+    repo = _resolve_repo()
+    install_pre_commit_hook(repo)
+    typer.echo(f"installed pre-commit hook at {repo / '.git' / 'hooks' / 'pre-commit'}")
+
+
+@app.command(name="uninstall-hook")
+def uninstall_hook_cmd() -> None:
+    """Remove the contx pre-commit hook from the current repo."""
+    repo = _resolve_repo()
+    uninstall_pre_commit_hook(repo)
+    typer.echo("removed contx pre-commit hook")
 
 
 def _git_author(repo: Path) -> str:
