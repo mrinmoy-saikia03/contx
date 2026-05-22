@@ -197,3 +197,13 @@ def test_audit_skips_dotcontx_dir(tmp_repo: Path):
     (tmp_repo / ".contx" / "config.json").touch()
     result = audit_tool(tmp_repo)
     assert not any(p.startswith(".contx/") for p in result["untracked_files"])
+
+
+def test_audit_respects_contxignore(tmp_repo: Path):
+    from contx.ignore import CONTXIGNORE_FILENAME
+    save_config(tmp_repo, default_config())
+    (tmp_repo / CONTXIGNORE_FILENAME).write_text("legacy/**\n")
+    (tmp_repo / "legacy").mkdir()
+    (tmp_repo / "legacy" / "old.py").write_text("pass\n")
+    result = audit_tool(tmp_repo)
+    assert "legacy/old.py" not in result["untracked_files"]

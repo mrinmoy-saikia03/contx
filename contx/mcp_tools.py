@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import os
 from datetime import datetime, timezone
-from fnmatch import fnmatch
 from pathlib import Path
 
 from ulid import ULID
@@ -170,35 +169,6 @@ def delete(
     return {"entry": _entry_to_dict(entry), "sidecar": str(sidecar.relative_to(repo_root))}
 
 
-def _is_ignored(rel_path: str, ignore_patterns: list[str]) -> bool:
-    """Return True if rel_path matches any ignore pattern.
-
-    Supports ** globs (e.g. '**/node_modules/**') by checking each path
-    component segment when the pattern uses **.
-    """
-    parts = rel_path.replace("\\", "/").split("/")
-    for pat in ignore_patterns:
-        if fnmatch(rel_path, pat):
-            return True
-        # Handle **/segment/** patterns: strip leading **/ and trailing /**
-        # and check if any segment or prefix matches
-        stripped = pat
-        if stripped.startswith("**/"):
-            stripped = stripped[3:]
-        if stripped.endswith("/**"):
-            stripped = stripped[:-3]
-            # Check if any component of the path equals this segment
-            if stripped in parts:
-                return True
-        else:
-            # Check if any leading subpath matches the stripped pattern
-            for i in range(1, len(parts) + 1):
-                sub = "/".join(parts[:i])
-                if fnmatch(sub, stripped):
-                    return True
-    return False
-
-
 def audit(repo_root: Path) -> dict:
     """Find orphan sidecars and untracked source files.
 
@@ -210,7 +180,8 @@ def audit(repo_root: Path) -> dict:
         return {"orphan_sidecars": [], "untracked_files": [], "warning": "contx not initialized"}
 
     extensions = {f".{ext}" for ext in cfg.languages}
-    ignore = cfg.ignore
+    from contx.ignore import load_effective_ignore_patterns, matches_any_pattern
+    ignore = load_effective_ignore_patterns(repo_root)
 
     # 1. Orphan sidecars: walk .contx/, check the source it mirrors exists
     orphans: list[dict] = []
@@ -235,7 +206,7 @@ def audit(repo_root: Path) -> dict:
         rel = str(path.relative_to(repo_root))
         if rel.startswith(f"{CTX_DIR}/") or rel.startswith(".git/"):
             continue
-        if _is_ignored(rel, ignore):
+        if matches_any_pattern(rel, ignore):
             continue
         sidecar = ctx_dir / (rel + SIDECAR_SUFFIX)
         if not sidecar.is_file():
