@@ -162,3 +162,15 @@ def contx_delete(file: str, rationale: str, symbol: str | None = None) -> dict:
     """
     repo = resolve_repo_root()
     return mcp_tools.delete(repo, file=file, rationale=rationale, symbol=symbol)
+
+
+@app.tool()
+def contx_audit() -> dict:
+    """Find inconsistencies between the source tree and .contx/.
+
+    Returns:
+        orphan_sidecars: Sidecars whose source file no longer exists.
+        untracked_files: Source files matching tracked languages but with no sidecar.
+    """
+    repo = resolve_repo_root()
+    return mcp_tools.audit(repo)

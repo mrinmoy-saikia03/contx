@@ -6,6 +6,7 @@ import pytest
 from contx.config import default_config, save_config
 from contx.entry import Entry
 from contx.mcp_tools import append as append_tool
+from contx.mcp_tools import audit as audit_tool
 from contx.mcp_tools import delete as delete_tool
 from contx.mcp_tools import query as query_tool
 from contx.mcp_tools import rename as rename_tool
@@ -165,3 +166,34 @@ def test_delete_file_appends_deleted_file_entry(tmp_repo: Path):
     deleted = [e for e in entries if e.event == "deleted"]
     assert len(deleted) == 1
     assert deleted[0].kind == "file"
+
+
+def test_audit_finds_orphan_sidecar(tmp_repo: Path):
+    save_config(tmp_repo, default_config())
+    append_entry(tmp_repo, "src/deleted.py", _entry(None, "created", "x"))
+    result = audit_tool(tmp_repo)
+    orphan_files = [o["file"] for o in result["orphan_sidecars"]]
+    assert "src/deleted.py" in orphan_files
+
+
+def test_audit_finds_untracked_python_file(tmp_repo: Path):
+    save_config(tmp_repo, default_config())
+    (tmp_repo / "src").mkdir()
+    (tmp_repo / "src" / "untracked.py").write_text("pass\n")
+    result = audit_tool(tmp_repo)
+    assert "src/untracked.py" in result["untracked_files"]
+
+
+def test_audit_respects_ignore_patterns(tmp_repo: Path):
+    save_config(tmp_repo, default_config())
+    (tmp_repo / "node_modules").mkdir()
+    (tmp_repo / "node_modules" / "lib.js").write_text("x")
+    result = audit_tool(tmp_repo)
+    assert "node_modules/lib.js" not in result["untracked_files"]
+
+
+def test_audit_skips_dotcontx_dir(tmp_repo: Path):
+    save_config(tmp_repo, default_config())
+    (tmp_repo / ".contx" / "config.json").touch()
+    result = audit_tool(tmp_repo)
+    assert not any(p.startswith(".contx/") for p in result["untracked_files"])

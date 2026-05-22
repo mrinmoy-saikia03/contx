@@ -8,11 +8,14 @@ from __future__ import annotations
 
 import os
 from datetime import datetime, timezone
+from fnmatch import fnmatch
 from pathlib import Path
 
 from ulid import ULID
 
+from contx.config import load_config
 from contx.entry import Entry
+from contx.paths import CTX_DIR, SIDECAR_SUFFIX, source_path_for_sidecar
 from contx.search import search_entries
 from contx.store import append_entry, fold_entries, read_entries
 
@@ -165,3 +168,77 @@ def delete(
     )
     sidecar = append_entry(repo_root, file, entry)
     return {"entry": _entry_to_dict(entry), "sidecar": str(sidecar.relative_to(repo_root))}
+
+
+def _is_ignored(rel_path: str, ignore_patterns: list[str]) -> bool:
+    """Return True if rel_path matches any ignore pattern.
+
+    Supports ** globs (e.g. '**/node_modules/**') by checking each path
+    component segment when the pattern uses **.
+    """
+    parts = rel_path.replace("\\", "/").split("/")
+    for pat in ignore_patterns:
+        if fnmatch(rel_path, pat):
+            return True
+        # Handle **/segment/** patterns: strip leading **/ and trailing /**
+        # and check if any segment or prefix matches
+        stripped = pat
+        if stripped.startswith("**/"):
+            stripped = stripped[3:]
+        if stripped.endswith("/**"):
+            stripped = stripped[:-3]
+            # Check if any component of the path equals this segment
+            if stripped in parts:
+                return True
+        else:
+            # Check if any leading subpath matches the stripped pattern
+            for i in range(1, len(parts) + 1):
+                sub = "/".join(parts[:i])
+                if fnmatch(sub, stripped):
+                    return True
+    return False
+
+
+def audit(repo_root: Path) -> dict:
+    """Find orphan sidecars and untracked source files.
+
+    Reads config from .contx/config.json for languages + ignore patterns.
+    """
+    try:
+        cfg = load_config(repo_root)
+    except FileNotFoundError:
+        return {"orphan_sidecars": [], "untracked_files": [], "warning": "contx not initialized"}
+
+    extensions = {f".{ext}" for ext in cfg.languages}
+    ignore = cfg.ignore
+
+    # 1. Orphan sidecars: walk .contx/, check the source it mirrors exists
+    orphans: list[dict] = []
+    ctx_dir = repo_root / CTX_DIR
+    if ctx_dir.is_dir():
+        for sidecar in sorted(ctx_dir.rglob(f"*{SIDECAR_SUFFIX}")):
+            try:
+                source = source_path_for_sidecar(repo_root, sidecar)
+            except ValueError:
+                continue
+            rel = str(source.relative_to(repo_root))
+            if not source.is_file():
+                orphans.append({"file": rel, "sidecar": str(sidecar.relative_to(repo_root))})
+
+    # 2. Untracked: walk repo, find files matching extensions but with no sidecar, not ignored
+    untracked: list[str] = []
+    for path in sorted(repo_root.rglob("*")):
+        if not path.is_file():
+            continue
+        if path.suffix not in extensions:
+            continue
+        rel = str(path.relative_to(repo_root))
+        if rel.startswith(f"{CTX_DIR}/") or rel.startswith(".git/"):
+            continue
+        if _is_ignored(rel, ignore):
+            continue
+        sidecar = ctx_dir / (rel + SIDECAR_SUFFIX)
+        if not sidecar.is_file():
+            untracked.append(rel)
+
+    return {"orphan_sidecars": orphans, "untracked_files": untracked}
