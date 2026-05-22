@@ -84,3 +84,61 @@ def append(
 def search(repo_root: Path, query: str, limit: int | None = None) -> list[dict]:
     """Substring search across all contx entries."""
     return search_entries(repo_root, query, limit=limit)
+
+
+def rename(
+    repo_root: Path,
+    old_file: str,
+    new_file: str,
+    old_symbol: str | None = None,
+    new_symbol: str | None = None,
+    rationale: str | None = None,
+) -> dict:
+    """Refactor bookkeeping: rename and/or move a file or symbol.
+
+    Appends a `*_out` entry on the old side and a `*_in` entry on the new
+    side, with `related` backlinks. Uses `renamed_*` when the file is the
+    same and `moved_*` when files differ.
+    """
+    same_file = old_file == new_file
+    out_event = "renamed_out" if same_file else "moved_out"
+    in_event = "renamed_in" if same_file else "moved_in"
+    rationale = rationale or (
+        f"{'renamed' if same_file else 'moved'} "
+        f"{old_file}::{old_symbol or ''} → {new_file}::{new_symbol or ''}"
+    )
+    old_ref = f"{old_file}::{old_symbol}" if old_symbol else old_file
+    new_ref = f"{new_file}::{new_symbol}" if new_symbol else new_file
+
+    old_kind = "symbol" if old_symbol else "file"
+    new_kind = "symbol" if new_symbol else "file"
+
+    out_entry = Entry(
+        id=str(ULID()),
+        kind=old_kind,
+        symbol=old_symbol,
+        event=out_event,
+        rationale=rationale,
+        tags=[],
+        author=os.environ.get("CONTX_AUTHOR", "claude-code"),
+        timestamp=datetime.now(timezone.utc),
+        agent="claude-code",
+        related=[new_ref],
+    )
+    in_entry = Entry(
+        id=str(ULID()),
+        kind=new_kind,
+        symbol=new_symbol,
+        event=in_event,
+        rationale=rationale,
+        tags=[],
+        author=os.environ.get("CONTX_AUTHOR", "claude-code"),
+        timestamp=datetime.now(timezone.utc),
+        agent="claude-code",
+        related=[old_ref],
+    )
+
+    append_entry(repo_root, old_file, out_entry)
+    append_entry(repo_root, new_file, in_entry)
+
+    return {"status": "ok", "old_ref": old_ref, "new_ref": new_ref}

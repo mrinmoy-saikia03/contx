@@ -114,3 +114,35 @@ def contx_search(query: str, limit: int | None = 50) -> list[dict]:
     """
     repo = resolve_repo_root()
     return mcp_tools.search(repo, query, limit=limit)
+
+
+@app.tool()
+def contx_rename(
+    old_file: str,
+    new_file: str,
+    old_symbol: str | None = None,
+    new_symbol: str | None = None,
+    rationale: str | None = None,
+) -> dict:
+    """Record a rename or move. Call this in the SAME turn as the rename Edit.
+
+    Appends a renamed_out/moved_out entry on the old side and a
+    renamed_in/moved_in entry on the new side, with backlinks. The full prior
+    history stays in the old sidecar — readers follow `related` to trace.
+
+    Args:
+        old_file: Original file path.
+        new_file: New file path. If same as old_file, treated as a rename.
+        old_symbol: Optional original symbol path.
+        new_symbol: Optional new symbol path.
+        rationale: Optional explanation; a default is generated if omitted.
+    """
+    repo = resolve_repo_root()
+    return mcp_tools.rename(
+        repo,
+        old_file=old_file,
+        new_file=new_file,
+        old_symbol=old_symbol,
+        new_symbol=new_symbol,
+        rationale=rationale,
+    )

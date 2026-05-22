@@ -7,7 +7,8 @@ from contx.config import default_config, save_config
 from contx.entry import Entry
 from contx.mcp_tools import append as append_tool
 from contx.mcp_tools import query as query_tool
-from contx.store import append_entry
+from contx.mcp_tools import rename as rename_tool
+from contx.store import append_entry, read_entries
 
 
 def _entry(symbol: str | None, event: str, rationale: str) -> Entry:
@@ -110,3 +111,36 @@ def test_append_rejects_invalid_event(tmp_repo: Path):
             related=[],
             agent="claude-code",
         )
+
+
+def test_rename_within_same_file(tmp_repo: Path):
+    save_config(tmp_repo, default_config())
+    append_entry(tmp_repo, "src/auth.py", _entry("login", "created", "v1"))
+    result = rename_tool(
+        tmp_repo,
+        old_file="src/auth.py", old_symbol="login",
+        new_file="src/auth.py", new_symbol="authenticate",
+        rationale="renamed for clarity",
+    )
+    assert result["status"] == "ok"
+    entries = read_entries(tmp_repo, "src/auth.py")
+    events = [e.event for e in entries]
+    assert "renamed_out" in events
+    assert "renamed_in" in events
+
+
+def test_move_across_files(tmp_repo: Path):
+    save_config(tmp_repo, default_config())
+    append_entry(tmp_repo, "src/auth.py", _entry("login", "created", "v1"))
+    rename_tool(
+        tmp_repo,
+        old_file="src/auth.py", old_symbol="login",
+        new_file="src/sso/handlers.py", new_symbol="route_eu",
+        rationale="moved to SSO subpackage",
+    )
+    old_entries = read_entries(tmp_repo, "src/auth.py")
+    new_entries = read_entries(tmp_repo, "src/sso/handlers.py")
+    assert any(e.event == "moved_out" for e in old_entries)
+    moved_in = [e for e in new_entries if e.event == "moved_in"]
+    assert moved_in
+    assert "src/auth.py::login" in moved_in[0].related
