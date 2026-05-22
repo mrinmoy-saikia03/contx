@@ -163,3 +163,47 @@ def log_cmd(ref: str = typer.Argument(..., help="file path, or file::symbol")) -
             typer.echo(f"tags: {', '.join(e.tags)}")
         typer.echo(e.rationale)
         typer.echo("")
+
+
+from contx.staging import compute_drift
+
+
+@app.command(name="_precommit-check", hidden=True)
+def _precommit_check() -> None:
+    """Internal: invoked by the pre-commit hook.
+
+    Exits 0 if staged changes have paired context (or contx is not
+    initialized, or enforcement is disabled). Exits 1 with a helpful
+    message if drift is detected and `require_context_on_commit` is True.
+    """
+    repo = _resolve_repo()
+    drift = compute_drift(repo)
+
+    if drift.uninitialized:
+        return
+
+    if not drift.missing:
+        return
+
+    from contx.config import load_config
+    cfg = load_config(repo)
+
+    if cfg.require_context_on_commit:
+        typer.echo("error: contx drift — the following files changed without a matching .contx/ entry:")
+        for f in drift.missing:
+            typer.echo(f"  - {f}")
+        typer.echo("")
+        typer.echo("Fix: add a contx entry for each file, then re-stage and re-commit.")
+        typer.echo("Example:")
+        typer.echo(f"  contx append --ref {drift.missing[0]} --event modified --rationale 'why this changed'")
+        typer.echo("  git add .contx/")
+        typer.echo("  git commit")
+        typer.echo("")
+        typer.echo("To bypass once: git commit --no-verify")
+        typer.echo("To disable enforcement: set 'require_context_on_commit': false in .contx/config.json")
+        raise typer.Exit(code=1)
+    else:
+        typer.echo("warning: contx drift — these files changed without a context entry:")
+        for f in drift.missing:
+            typer.echo(f"  - {f}")
+        return

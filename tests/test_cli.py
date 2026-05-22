@@ -154,3 +154,55 @@ def test_show_rejects_bad_ref(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
     result = runner.invoke(app, ["show", "a::b::c"])
     assert result.exit_code == 2
     assert "only one" in result.output.lower()
+
+
+def test_precommit_check_passes_when_no_drift(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    import subprocess
+    monkeypatch.chdir(tmp_repo)
+    runner.invoke(app, ["init"])
+    (tmp_repo / ".contx" / "src").mkdir(parents=True, exist_ok=True)
+    (tmp_repo / ".contx" / "src" / "foo.py.jsonl").write_text('{"id":"x"}\n')
+    subprocess.run(["git", "add", ".contx/src/foo.py.jsonl"], cwd=tmp_repo, check=True)
+    result = runner.invoke(app, ["_precommit-check"])
+    assert result.exit_code == 0
+
+
+def test_precommit_check_blocks_when_drift(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    import subprocess
+    monkeypatch.chdir(tmp_repo)
+    runner.invoke(app, ["init"])
+    (tmp_repo / "src").mkdir()
+    (tmp_repo / "src" / "foo.py").write_text("x = 1\n")
+    subprocess.run(["git", "add", "src/foo.py"], cwd=tmp_repo, check=True)
+    result = runner.invoke(app, ["_precommit-check"])
+    assert result.exit_code != 0
+    assert "src/foo.py" in result.output
+    assert "context" in result.output.lower()
+
+
+def test_precommit_check_soft_warns_when_disabled(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    import subprocess
+    import json
+    monkeypatch.chdir(tmp_repo)
+    runner.invoke(app, ["init"])
+    cfg_path = tmp_repo / ".contx" / "config.json"
+    cfg = json.loads(cfg_path.read_text())
+    cfg["require_context_on_commit"] = False
+    cfg_path.write_text(json.dumps(cfg))
+    (tmp_repo / "src").mkdir()
+    (tmp_repo / "src" / "foo.py").write_text("x = 1\n")
+    subprocess.run(["git", "add", "src/foo.py"], cwd=tmp_repo, check=True)
+    result = runner.invoke(app, ["_precommit-check"])
+    assert result.exit_code == 0
+    assert "warning" in result.output.lower()
+
+
+def test_precommit_check_passes_on_uninitialized(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    import subprocess
+    monkeypatch.chdir(tmp_repo)
+    # NO contx init
+    (tmp_repo / "src").mkdir()
+    (tmp_repo / "src" / "foo.py").write_text("x = 1\n")
+    subprocess.run(["git", "add", "src/foo.py"], cwd=tmp_repo, check=True)
+    result = runner.invoke(app, ["_precommit-check"])
+    assert result.exit_code == 0
