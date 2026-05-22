@@ -25,6 +25,7 @@ contx log src/foo.py
 | `contx draft [--from-transcript]` | Interactive editor for drifted files; appends entries and re-stages `.contx/`. |
 | `contx install-hook` / `contx uninstall-hook` | Install or remove the pre-commit hook (`contx init` installs it by default; use `init --no-hook` to skip). |
 | `contx install-skill` / `contx uninstall-skill` | Install or remove the Claude Code skill at `~/.claude/skills/contx/`. |
+| `contx serve [--port 4242] [--host 127.0.0.1]` | Launch the read-only local web UI. |
 | `contx version` | Print version. |
 
 `<ref>` is either `path/to/file.py` (file-level) or `path/to/file.py::Class.method` (symbol-level).
@@ -155,6 +156,23 @@ For a head start: `contx draft --from-transcript` heuristically mines the most r
 - `contx install-hook` — install (or top up) the hook on a repo that wasn't `init`'d with it.
 - `contx uninstall-hook` — remove the contx block (preserves other content in the hook).
 
+## Web UI
+
+```bash
+contx serve              # localhost:4242
+contx serve --port 8080  # any port
+```
+
+Opens a read-only web viewer. Routes:
+
+- `/` — file tree (every source file with contx entries).
+- `/file/<path>` — file-level intent, list of symbols, full log.
+- `/symbol/<path>::<symbol>` — symbol's current intent + complete log.
+- `/search?q=` — full-text search across all rationales and tags.
+- `/timeline` — recent entries across the whole repo, sorted newest first.
+
+No auth, no edits, no JS bundle — server-rendered HTML with a sprinkle of htmx. The intent map travels with git: anyone who clones the repo can `contx serve` and see why every function is the way it is.
+
 ## Storage layout
 
 contx stores entries in JSONL sidecars under `.contx/`, mirroring the source tree:
@@ -171,5 +189,5 @@ Each line of the sidecar is one entry: `{id, kind, symbol, event, rationale, tag
 
 ## Status
 
-Plan 1 (storage core + CLI), Plan 2 (MCP server), Plan 3 (pre-commit hook), Plan 3b (`contx draft`), and Plan 4 (Claude Code skill) shipped. Plan 5 (web UI) and backlog items pending. See `docs/plans/` and `docs/BACKLOG.md`.
+Plans 1–5 shipped: storage + CLI, MCP server, pre-commit hook, `contx draft`, Claude Code skill, local web UI. Backlog items (`.contxignore`, hardening notes) pending. See `docs/plans/` and `docs/BACKLOG.md`.
 
