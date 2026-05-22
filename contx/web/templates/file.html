@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}{{ file }} — contx{% endblock %}
+{% block body %}
+<p><a href="/">&#8592; all files</a></p>
+<h1>{{ file }}</h1>
+{% if folded.file_intent %}
+  <div class="entry">
+    <div class="rationale">{{ folded.file_intent }}</div>
+  </div>
+{% endif %}
+{% if folded.symbols %}
+  <h2>Symbols ({{ folded.symbols|length }})</h2>
+  <ul class="file-list">
+    {% for sym in folded.symbols %}
+      <li><a href="/symbol/{{ file }}::{{ sym }}">{{ sym }}</a></li>
+    {% endfor %}
+  </ul>
+{% endif %}
+<h2>Log ({{ log|length }})</h2>
+{% for e in log %}
+  <div class="entry">
+    <div class="meta">{{ e.timestamp }} &middot; {{ e.event }} &middot; {{ e.author }} &middot; {{ e.agent }}{% if e.symbol %} &middot; {{ e.symbol }}{% endif %}</div>
+    {% if e.tags %}<div class="tags">{{ e.tags|join(", ") }}</div>{% endif %}
+    <div class="rationale">{{ e.rationale }}</div>
+  </div>
+{% endfor %}
+{% endblock %}

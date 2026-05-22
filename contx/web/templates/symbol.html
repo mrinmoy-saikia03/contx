@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}{{ file }}::{{ symbol }} — contx{% endblock %}
+{% block body %}
+<p><a href="/file/{{ file }}">&#8592; {{ file }}</a></p>
+<h1>{{ file }}::{{ symbol }}</h1>
+{% if intent %}
+  <div class="entry"><div class="rationale">{{ intent }}</div></div>
+{% endif %}
+<h2>Log ({{ log|length }})</h2>
+{% for e in log %}
+  <div class="entry">
+    <div class="meta">{{ e.timestamp }} &middot; {{ e.event }} &middot; {{ e.author }} &middot; {{ e.agent }}</div>
+    {% if e.tags %}<div class="tags">{{ e.tags|join(", ") }}</div>{% endif %}
+    <div class="rationale">{{ e.rationale }}</div>
+  </div>
+{% endfor %}
+{% endblock %}

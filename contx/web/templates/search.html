@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}search — contx{% endblock %}
+{% block body %}
+<h1>Search</h1>
+<form method="get" action="/search">
+  <input type="search" name="q" value="{{ q }}" placeholder="GDPR, incident, compliance, &#8230;" autofocus>
+</form>
+{% if q %}
+  <h2>Results ({{ hits|length }}) for &#8220;{{ q }}&#8221;</h2>
+  {% for hit in hits %}
+    <div class="entry">
+      <div class="meta">
+        <a href="/file/{{ hit.file }}">{{ hit.file }}</a>{% if hit.entry.symbol %} :: <a href="/symbol/{{ hit.file }}::{{ hit.entry.symbol }}">{{ hit.entry.symbol }}</a>{% endif %}
+        &middot; {{ hit.entry.timestamp }} &middot; {{ hit.entry.event }}
+      </div>
+      {% if hit.entry.tags %}<div class="tags">{{ hit.entry.tags|join(", ") }}</div>{% endif %}
+      <div class="rationale">{{ hit.entry.rationale }}</div>
+    </div>
+  {% else %}
+    <p>No results.</p>
+  {% endfor %}
+{% endif %}
+{% endblock %}

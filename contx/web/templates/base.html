@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{% block title %}contx{% endblock %}</title>
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; max-width: 960px; margin: 2em auto; padding: 0 1em; color: #1a1a1a; line-height: 1.5; }
+    a { color: #0066cc; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    nav { border-bottom: 1px solid #ddd; padding-bottom: 0.5em; margin-bottom: 1.5em; }
+    nav a { margin-right: 1em; }
+    .file-list li { font-family: ui-monospace, "SF Mono", Monaco, monospace; font-size: 0.9em; }
+    .entry { border-left: 3px solid #ccc; padding: 0.5em 1em; margin: 1em 0; background: #fafafa; }
+    .meta { font-size: 0.8em; color: #666; margin-bottom: 0.25em; }
+    .tags { font-size: 0.8em; color: #888; margin-top: 0.25em; }
+    .rationale { white-space: pre-wrap; }
+    input[type=search] { width: 100%; padding: 0.5em; font-size: 1em; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 1em; box-sizing: border-box; }
+    h1, h2 { margin-top: 1em; }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="/">contx</a>
+    <a href="/search">search</a>
+    <a href="/timeline">timeline</a>
+  </nav>
+  {% block body %}{% endblock %}
+</body>
+</html>

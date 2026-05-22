@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}contx — {{ repo }}{% endblock %}
+{% block body %}
+<h1>contx</h1>
+<p><code>{{ repo }}</code></p>
+{% if files %}
+  <h2>Files with context ({{ files|length }})</h2>
+  <ul class="file-list">
+    {% for f in files %}
+      <li><a href="/file/{{ f }}">{{ f }}</a></li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <p>No context entries yet. Run <code>contx init</code> and <code>contx append</code> to add some.</p>
+{% endif %}
+{% endblock %}

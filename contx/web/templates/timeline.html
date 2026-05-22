@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}timeline — contx{% endblock %}
+{% block body %}
+<h1>Timeline</h1>
+{% if items %}
+  {% for item in items %}
+    <div class="entry">
+      <div class="meta">
+        <a href="/file/{{ item.file }}">{{ item.file }}</a>{% if item.symbol %} :: <a href="/symbol/{{ item.file }}::{{ item.symbol }}">{{ item.symbol }}</a>{% endif %}
+        &middot; {{ item.timestamp }} &middot; {{ item.event }} &middot; {{ item.author }}
+      </div>
+      {% if item.tags %}<div class="tags">{{ item.tags|join(", ") }}</div>{% endif %}
+      <div class="rationale">{{ item.rationale }}</div>
+    </div>
+  {% endfor %}
+{% else %}
+  <p>No entries yet. Run <code>contx init</code> and <code>contx append</code> to add some.</p>
+{% endif %}
+{% endblock %}
