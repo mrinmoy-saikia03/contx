@@ -5,6 +5,7 @@ import pytest
 
 from contx.config import default_config, save_config
 from contx.entry import Entry
+from contx.mcp_tools import append as append_tool
 from contx.mcp_tools import query as query_tool
 from contx.store import append_entry
 
@@ -57,3 +58,55 @@ def test_query_missing_symbol_returns_none(tmp_repo: Path):
     append_entry(tmp_repo, "src/auth.py", _entry(None, "created", "auth module"))
     result = query_tool(tmp_repo, "src/auth.py", symbol="nope")
     assert result["symbol_intent"] is None
+
+
+def test_append_symbol_creates_sidecar(tmp_repo: Path):
+    save_config(tmp_repo, default_config())
+    result = append_tool(
+        tmp_repo,
+        file="src/auth.py",
+        event="created",
+        rationale="email-only login because GDPR",
+        symbol="login",
+        tags=["compliance"],
+        related=[],
+        agent="claude-code",
+    )
+    assert result["sidecar"].endswith("src/auth.py.jsonl")
+    assert result["entry"]["symbol"] == "login"
+    assert result["entry"]["event"] == "created"
+    assert "compliance" in result["entry"]["tags"]
+    sidecar = tmp_repo / ".contx" / "src" / "auth.py.jsonl"
+    assert sidecar.is_file()
+    assert "GDPR" in sidecar.read_text()
+
+
+def test_append_file_kind(tmp_repo: Path):
+    save_config(tmp_repo, default_config())
+    result = append_tool(
+        tmp_repo,
+        file="src/auth.py",
+        event="created",
+        rationale="owns SSO + email login",
+        symbol=None,
+        tags=[],
+        related=[],
+        agent="claude-code",
+    )
+    assert result["entry"]["kind"] == "file"
+    assert result["entry"]["symbol"] is None
+
+
+def test_append_rejects_invalid_event(tmp_repo: Path):
+    save_config(tmp_repo, default_config())
+    with pytest.raises(ValueError, match="event must be"):
+        append_tool(
+            tmp_repo,
+            file="src/auth.py",
+            event="banana",
+            rationale="x",
+            symbol=None,
+            tags=[],
+            related=[],
+            agent="claude-code",
+        )
