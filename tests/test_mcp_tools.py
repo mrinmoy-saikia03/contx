@@ -6,6 +6,7 @@ import pytest
 from contx.config import default_config, save_config
 from contx.entry import Entry
 from contx.mcp_tools import append as append_tool
+from contx.mcp_tools import delete as delete_tool
 from contx.mcp_tools import query as query_tool
 from contx.mcp_tools import rename as rename_tool
 from contx.store import append_entry, read_entries
@@ -144,3 +145,23 @@ def test_move_across_files(tmp_repo: Path):
     moved_in = [e for e in new_entries if e.event == "moved_in"]
     assert moved_in
     assert "src/auth.py::login" in moved_in[0].related
+
+
+def test_delete_symbol_appends_deleted_entry(tmp_repo: Path):
+    save_config(tmp_repo, default_config())
+    append_entry(tmp_repo, "src/auth.py", _entry("login", "created", "v1"))
+    delete_tool(tmp_repo, file="src/auth.py", symbol="login", rationale="superseded")
+    entries = read_entries(tmp_repo, "src/auth.py")
+    deleted = [e for e in entries if e.event == "deleted"]
+    assert len(deleted) == 1
+    assert deleted[0].rationale == "superseded"
+
+
+def test_delete_file_appends_deleted_file_entry(tmp_repo: Path):
+    save_config(tmp_repo, default_config())
+    append_entry(tmp_repo, "src/auth.py", _entry(None, "created", "v1"))
+    delete_tool(tmp_repo, file="src/auth.py", symbol=None, rationale="module retired")
+    entries = read_entries(tmp_repo, "src/auth.py")
+    deleted = [e for e in entries if e.event == "deleted"]
+    assert len(deleted) == 1
+    assert deleted[0].kind == "file"

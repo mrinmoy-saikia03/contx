@@ -146,3 +146,19 @@ def contx_rename(
         new_symbol=new_symbol,
         rationale=rationale,
     )
+
+
+@app.tool()
+def contx_delete(file: str, rationale: str, symbol: str | None = None) -> dict:
+    """Record a code deletion. Pair with the actual Edit/Write that removes the code.
+
+    History is preserved — folded views just stop including the deleted
+    symbol. The append-only log still shows everything.
+
+    Args:
+        file: Path to the source file.
+        rationale: Why the symbol/file was removed.
+        symbol: Optional symbol path; omit for whole-file deletion.
+    """
+    repo = resolve_repo_root()
+    return mcp_tools.delete(repo, file=file, rationale=rationale, symbol=symbol)

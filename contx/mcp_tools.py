@@ -142,3 +142,26 @@ def rename(
     append_entry(repo_root, new_file, in_entry)
 
     return {"status": "ok", "old_ref": old_ref, "new_ref": new_ref}
+
+
+def delete(
+    repo_root: Path,
+    file: str,
+    rationale: str,
+    symbol: str | None = None,
+) -> dict:
+    """Append a `deleted` entry. History is preserved."""
+    entry = Entry(
+        id=str(ULID()),
+        kind="symbol" if symbol else "file",
+        symbol=symbol,
+        event="deleted",
+        rationale=rationale,
+        tags=[],
+        author=os.environ.get("CONTX_AUTHOR", "claude-code"),
+        timestamp=datetime.now(timezone.utc),
+        agent="claude-code",
+        related=[],
+    )
+    sidecar = append_entry(repo_root, file, entry)
+    return {"entry": _entry_to_dict(entry), "sidecar": str(sidecar.relative_to(repo_root))}
