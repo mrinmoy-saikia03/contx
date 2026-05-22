@@ -22,6 +22,7 @@ contx log src/foo.py
 | `contx append --ref X --event Y --rationale Z` | Add a context entry. `--event` is one of `created`, `modified`, `renamed_in`, `renamed_out`, `moved_in`, `moved_out`, `deleted`. Repeatable `--tag` and `--related`. |
 | `contx show <ref>` | Print the folded current intent for a file or symbol. |
 | `contx log <ref>` | Print the full append-only history. |
+| `contx install-hook` / `contx uninstall-hook` | Install or remove the pre-commit hook (`contx init` installs it by default; use `init --no-hook` to skip). |
 | `contx version` | Print version. |
 
 `<ref>` is either `path/to/file.py` (file-level) or `path/to/file.py::Class.method` (symbol-level).
@@ -70,6 +71,37 @@ By default the server uses `os.getcwd()` to find the repo root (walks up looking
 
 The intended workflow: AI agents call `contx_query` before editing to learn existing context, then call `contx_append` (or `contx_rename` / `contx_delete`) in the same turn as their `Edit` / `Write` tool calls. The CLI is for humans.
 
+## Pre-commit hook
+
+`contx init` installs a `pre-commit` hook in `.git/hooks/pre-commit` (use `--no-hook` to opt out). The hook blocks any commit where a tracked source file changed but its `.contx/` sidecar didn't.
+
+Example:
+
+```
+$ git commit -m "fix the bug"
+error: contx drift — the following files changed without a matching .contx/ entry:
+  - src/auth/login.py
+
+Fix: add a contx entry for each file, then re-stage and re-commit.
+Example:
+  contx append --ref src/auth/login.py --event modified --rationale 'why this changed'
+  git add .contx/
+  git commit
+
+To bypass once: git commit --no-verify
+To disable enforcement: set 'require_context_on_commit': false in .contx/config.json
+```
+
+### Bypass
+
+- **One commit:** `git commit --no-verify`
+- **Whole repo:** set `"require_context_on_commit": false` in `.contx/config.json` to convert the block into a soft warning.
+
+### Manage the hook
+
+- `contx install-hook` — install (or top up) the hook on a repo that wasn't `init`'d with it.
+- `contx uninstall-hook` — remove the contx block (preserves other content in the hook).
+
 ## Storage layout
 
 contx stores entries in JSONL sidecars under `.contx/`, mirroring the source tree:
@@ -86,5 +118,5 @@ Each line of the sidecar is one entry: `{id, kind, symbol, event, rationale, tag
 
 ## Status
 
-Plan 1 (storage core + CLI) and Plan 2 (MCP server) shipped. Plans 3-5 (commit-time extraction hook, Claude Code skill, web UI) pending. See `docs/plans/` and `docs/BACKLOG.md`.
+Plan 1 (storage core + CLI), Plan 2 (MCP server), and Plan 3 (pre-commit hook + drift detection) shipped. Plans 4-5 (Claude Code skill, web UI) and Plan 3b (transcript-mining auto-extraction) pending. See `docs/plans/` and `docs/BACKLOG.md`.
 
