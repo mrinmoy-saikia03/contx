@@ -78,3 +78,36 @@ def test_file_view_404_when_missing(tmp_repo: Path) -> None:
     client = TestClient(create_app(repo_root=tmp_repo))
     r = client.get("/file/src/nope.py")
     assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Task 3: /search, /timeline
+# ---------------------------------------------------------------------------
+
+
+def test_search_returns_hits(tmp_repo: Path) -> None:
+    save_config(tmp_repo, default_config())
+    append_entry(tmp_repo, "src/a.py", _entry(None, "GDPR compliance gate"))
+    append_entry(tmp_repo, "src/b.py", _entry(None, "perf optimization"))
+    client = TestClient(create_app(repo_root=tmp_repo))
+    r = client.get("/search?q=gdpr")
+    assert r.status_code == 200
+    assert "src/a.py" in r.text
+    assert "src/b.py" not in r.text
+
+
+def test_search_empty_query_returns_form(tmp_repo: Path) -> None:
+    save_config(tmp_repo, default_config())
+    client = TestClient(create_app(repo_root=tmp_repo))
+    r = client.get("/search")
+    assert r.status_code == 200
+    assert "search" in r.text.lower()
+
+
+def test_timeline_shows_recent_entries(tmp_repo: Path) -> None:
+    save_config(tmp_repo, default_config())
+    append_entry(tmp_repo, "src/a.py", _entry(None, "X-RATIONALE-X"))
+    client = TestClient(create_app(repo_root=tmp_repo))
+    r = client.get("/timeline")
+    assert r.status_code == 200
+    assert "X-RATIONALE-X" in r.text
