@@ -22,6 +22,7 @@ contx log src/foo.py
 | `contx append --ref X --event Y --rationale Z` | Add a context entry. `--event` is one of `created`, `modified`, `renamed_in`, `renamed_out`, `moved_in`, `moved_out`, `deleted`. Repeatable `--tag` and `--related`. |
 | `contx show <ref>` | Print the folded current intent for a file or symbol. |
 | `contx log <ref>` | Print the full append-only history. |
+| `contx draft [--from-transcript]` | Interactive editor for drifted files; appends entries and re-stages `.contx/`. |
 | `contx install-hook` / `contx uninstall-hook` | Install or remove the pre-commit hook (`contx init` installs it by default; use `init --no-hook` to skip). |
 | `contx version` | Print version. |
 
@@ -92,6 +93,26 @@ To bypass once: git commit --no-verify
 To disable enforcement: set 'require_context_on_commit': false in .contx/config.json
 ```
 
+### Fixing drift with `contx draft`
+
+When the hook blocks, run `contx draft`. It opens your `$EDITOR` (or `$VISUAL`, or `CONTX_EDITOR`) on a template with one section per drifted file. Fill in the `rationale:` line, save, exit — entries are appended to `.contx/` and re-staged. Then re-run `git commit`.
+
+```
+$ contx draft
+# (editor opens)
+# contx draft — fill in a rationale for each file, then save & exit.
+#
+# ## src/auth/login.py
+# event: modified
+# rationale: switched to email-only because GDPR
+# tags: compliance, gdpr
+#
+# (save & exit)
+appended 1 entries and staged .contx/. Run `git commit` again.
+```
+
+For a head start: `contx draft --from-transcript` heuristically mines the most recent Claude Code session transcript at `~/.claude/projects/<sanitized-cwd>/` and pre-fills each rationale with the most relevant sentence. Edit as needed before saving.
+
 ### Bypass
 
 - **One commit:** `git commit --no-verify`
@@ -118,5 +139,5 @@ Each line of the sidecar is one entry: `{id, kind, symbol, event, rationale, tag
 
 ## Status
 
-Plan 1 (storage core + CLI), Plan 2 (MCP server), and Plan 3 (pre-commit hook + drift detection) shipped. Plans 4-5 (Claude Code skill, web UI) and Plan 3b (transcript-mining auto-extraction) pending. See `docs/plans/` and `docs/BACKLOG.md`.
+Plan 1 (storage core + CLI), Plan 2 (MCP server), Plan 3 (pre-commit hook), and Plan 3b (`contx draft` interactive command) shipped. Plans 4-5 (Claude Code skill, web UI) pending. See `docs/plans/` and `docs/BACKLOG.md`.
 
