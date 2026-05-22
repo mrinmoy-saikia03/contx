@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import subprocess
 from dataclasses import dataclass, field
-from fnmatch import fnmatchcase
 from pathlib import Path
 
 from contx.config import load_config
+from contx.ignore import matches_any_pattern as _matches_any  # noqa: F401
 from contx.paths import CTX_DIR, SIDECAR_SUFFIX
 
 
@@ -33,33 +33,6 @@ def list_staged_paths(repo_root: Path) -> list[str]:
     return [line for line in out.stdout.splitlines() if line]
 
 
-def _segments_match(parts: list[str], pat_parts: list[str]) -> bool:
-    """Recursive ** glob matcher (segment-based)."""
-    if not pat_parts:
-        return not parts
-    head, *rest = pat_parts
-    if head == "**":
-        if not rest:
-            return True
-        for i in range(len(parts) + 1):
-            if _segments_match(parts[i:], rest):
-                return True
-        return False
-    if not parts:
-        return False
-    if fnmatchcase(parts[0], head):
-        return _segments_match(parts[1:], rest)
-    return False
-
-
-def _matches_any(rel_path: str, patterns: list[str]) -> bool:
-    parts = rel_path.split("/")
-    for pat in patterns:
-        if _segments_match(parts, pat.split("/")):
-            return True
-    return False
-
-
 def compute_drift(repo_root: Path) -> Drift:
     """Compare staged source files against staged sidecar files."""
     try:
@@ -68,7 +41,8 @@ def compute_drift(repo_root: Path) -> Drift:
         return Drift(missing=[], uninitialized=True)
 
     extensions = {f".{ext}" for ext in cfg.languages}
-    ignore = cfg.ignore
+    from contx.ignore import load_effective_ignore_patterns
+    ignore = load_effective_ignore_patterns(repo_root)
 
     staged = list_staged_paths(repo_root)
     staged_sidecars = {

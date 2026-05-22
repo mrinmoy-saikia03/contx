@@ -76,3 +76,12 @@ def test_compute_drift_pairs_sidecar_to_source(tmp_repo: Path):
     _write_and_stage(tmp_repo, ".contx/src/foo.py.jsonl", '{"id":"x"}\n')
     drift = compute_drift(tmp_repo)
     assert drift.missing == []
+
+
+def test_compute_drift_respects_contxignore(tmp_repo: Path):
+    from contx.ignore import CONTXIGNORE_FILENAME
+    save_config(tmp_repo, default_config())
+    (tmp_repo / CONTXIGNORE_FILENAME).write_text("vendor/**\n")
+    _write_and_stage(tmp_repo, "vendor/lib.py", "x = 1\n")
+    drift = compute_drift(tmp_repo)
+    assert "vendor/lib.py" not in drift.missing
