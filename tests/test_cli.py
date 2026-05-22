@@ -1,4 +1,5 @@
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -238,3 +239,58 @@ def test_uninstall_hook_command(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch)
     assert result.exit_code == 0
     hook = tmp_repo / ".git" / "hooks" / "pre-commit"
     assert not hook.is_file()
+
+
+def test_draft_appends_entries_for_drifted_files(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    monkeypatch.chdir(tmp_repo)
+    runner.invoke(app, ["init"])
+    (tmp_repo / "src").mkdir()
+    (tmp_repo / "src" / "foo.py").write_text("x = 1\n")
+    subprocess.run(["git", "add", "src/foo.py"], cwd=tmp_repo, check=True)
+
+    # Editor script: replaces "rationale: " with "rationale: filled-by-test "
+    helper = tmp_path / "fill.py"
+    helper.write_text(
+        'import sys\n'
+        'p = sys.argv[1]\n'
+        'with open(p) as f: t = f.read()\n'
+        't = t.replace("rationale: ", "rationale: filled-by-test ")\n'
+        'with open(p, "w") as f: f.write(t)\n'
+    )
+    editor = tmp_path / "fake_editor.sh"
+    editor.write_text(f"#!/bin/sh\nexec {sys.executable} {helper} \"$1\"\n")
+    editor.chmod(0o755)
+    monkeypatch.setenv("CONTX_EDITOR", str(editor))
+
+    result = runner.invoke(app, ["draft"])
+    assert result.exit_code == 0, result.output
+
+    sidecar = tmp_repo / ".contx" / "src" / "foo.py.jsonl"
+    assert sidecar.is_file()
+    assert "filled-by-test" in sidecar.read_text()
+
+
+def test_draft_no_drift_is_noop(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.chdir(tmp_repo)
+    runner.invoke(app, ["init"])
+    result = runner.invoke(app, ["draft"])
+    assert result.exit_code == 0
+    assert "no drift" in result.output.lower() or "nothing to draft" in result.output.lower()
+
+
+def test_draft_skips_blank_rationale(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    monkeypatch.chdir(tmp_repo)
+    runner.invoke(app, ["init"])
+    (tmp_repo / "src").mkdir()
+    (tmp_repo / "src" / "foo.py").write_text("x = 1\n")
+    subprocess.run(["git", "add", "src/foo.py"], cwd=tmp_repo, check=True)
+
+    editor = tmp_path / "noop.sh"
+    editor.write_text('#!/bin/sh\nexit 0\n')
+    editor.chmod(0o755)
+    monkeypatch.setenv("CONTX_EDITOR", str(editor))
+
+    result = runner.invoke(app, ["draft"])
+    assert result.exit_code == 0
+    sidecar = tmp_repo / ".contx" / "src" / "foo.py.jsonl"
+    assert not sidecar.is_file()

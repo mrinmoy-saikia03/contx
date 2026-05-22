@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -9,6 +12,7 @@ import typer
 
 from contx import __version__
 from contx.config import default_config, save_config
+from contx.drafting import build_template, parse_template
 from contx.entry import Entry
 from contx.paths import parse_symbol_ref
 from contx.hooks import (
@@ -195,6 +199,81 @@ def log_cmd(ref: str = typer.Argument(..., help="file path, or file::symbol")) -
 
 
 from contx.staging import compute_drift
+
+
+@app.command()
+def draft(
+    from_transcript: bool = typer.Option(False, "--from-transcript", help="Pre-fill from the most recent Claude transcript"),
+) -> None:
+    """Open an editor to add context for drifted files, then append + restage."""
+    repo = _resolve_repo()
+    if not is_initialized(repo):
+        typer.echo("error: contx not initialized for this repo. Run `contx init` first.", err=True)
+        raise typer.Exit(code=2)
+
+    drift = compute_drift(repo)
+    if not drift.missing:
+        typer.echo("no drift — nothing to draft.")
+        return
+
+    prefilled: dict[str, str] = {}
+    if from_transcript:
+        from contx.transcript import extract_rationales_for_files, find_recent_transcript
+        t = find_recent_transcript(repo)
+        if t is not None:
+            prefilled = extract_rationales_for_files(t, drift.missing)
+            if prefilled:
+                typer.echo(f"pre-filled {len(prefilled)} rationales from {t.name}")
+
+    template = build_template(drift.missing, prefilled=prefilled)
+
+    editor = os.environ.get("CONTX_EDITOR") or os.environ.get("VISUAL") or os.environ.get("EDITOR") or "vi"
+
+    with tempfile.NamedTemporaryFile("w+", suffix=".contx-draft.md", delete=False) as f:
+        f.write(template)
+        tmp_path_str = f.name
+
+    try:
+        subprocess.run([editor, tmp_path_str], check=False)
+        with open(tmp_path_str) as f:
+            filled = f.read()
+    finally:
+        try:
+            os.unlink(tmp_path_str)
+        except OSError:
+            pass
+
+    entries = parse_template(filled)
+    written = 0
+    from contx.paths import parse_symbol_ref as _parse_symbol_ref
+    from ulid import ULID
+
+    for d in entries:
+        if d.skip:
+            continue
+        ref = f"{d.file}::{d.symbol}" if d.symbol else d.file
+        file_path, sym = _parse_symbol_ref(ref)
+        entry = Entry(
+            id=str(ULID()),
+            kind="symbol" if sym else "file",
+            symbol=sym,
+            event=d.event,
+            rationale=d.rationale,
+            tags=list(d.tags),
+            author=_git_author(repo),
+            timestamp=datetime.now(timezone.utc),
+            agent="human-cli",  # type: ignore[arg-type]
+            related=[],
+        )
+        append_entry(repo, file_path, entry)
+        written += 1
+
+    if written == 0:
+        typer.echo("no rationales filled in — nothing appended.")
+        return
+
+    subprocess.run(["git", "-C", str(repo), "add", ".contx"], check=False)
+    typer.echo(f"appended {written} entries and staged .contx/. Run `git commit` again.")
 
 
 @app.command(name="_precommit-check", hidden=True)
