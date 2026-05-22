@@ -4,10 +4,24 @@ Git for context. Append-only logs of *why* each file and function exists, writte
 
 See `docs/specs/2026-05-21-contx-design.md` for the full design.
 
-## Quickstart
+## Install
+
+One-command install (uses `pipx` if present, else a local venv):
+
+```bash
+./install.sh           # just the CLI + MCP binaries
+./install.sh --all     # also installs the Claude Code skill + registers contx-mcp
+```
+
+Or for development inside this repo:
 
 ```bash
 pip install -e .[dev]
+```
+
+## Quickstart
+
+```bash
 contx init
 contx append --ref src/foo.py::bar --event created --rationale "why this exists"
 contx show src/foo.py::bar
