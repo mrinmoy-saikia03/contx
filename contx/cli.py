@@ -31,6 +31,26 @@ from contx.skill_install import install_skill, uninstall_skill
 app = typer.Typer(help="contx — git for context", no_args_is_help=True)
 
 
+def _write_default_contxignore(repo: Path) -> bool:
+    """Write a starter .contxignore if one doesn't exist. Returns True if written."""
+    path = repo / ".contxignore"
+    if path.exists():
+        return False
+    path.write_text(
+        "# contx — paths to skip when tracking context.\n"
+        "# Same syntax as .gitignore (subset).\n"
+        "\n"
+        "**/node_modules/**\n"
+        "**/__tests__/**\n"
+        "**/.venv/**\n"
+        "**/venv/**\n"
+        "**/dist/**\n"
+        "**/build/**\n"
+        "**/.contx/**\n"
+    )
+    return True
+
+
 def _resolve_repo() -> Path:
     try:
         return find_repo_root(Path.cwd())
@@ -56,12 +76,16 @@ def init(
         if not no_hook and not is_pre_commit_hook_installed(repo):
             install_pre_commit_hook(repo)
             typer.echo(f"installed pre-commit hook at {repo / '.git' / 'hooks' / 'pre-commit'}")
+        if _write_default_contxignore(repo):
+            typer.echo(f"created .contxignore at {repo / '.contxignore'}")
         return
     save_config(repo, default_config())
     typer.echo(f"initialized contx at {repo / '.contx'}")
     if not no_hook:
         install_pre_commit_hook(repo)
         typer.echo(f"installed pre-commit hook at {repo / '.git' / 'hooks' / 'pre-commit'}")
+    if _write_default_contxignore(repo):
+        typer.echo(f"created .contxignore at {repo / '.contxignore'}")
 
 
 @app.command(name="install-hook")

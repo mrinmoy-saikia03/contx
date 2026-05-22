@@ -321,3 +321,20 @@ def test_serve_command_imports_cleanly(tmp_repo: Path, monkeypatch: pytest.Monke
     result = runner.invoke(app, ["serve", "--help"])
     assert result.exit_code == 0
     assert "port" in result.output.lower()
+
+
+def test_init_creates_contxignore(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.chdir(tmp_repo)
+    runner.invoke(app, ["init"])
+    ignore_file = tmp_repo / ".contxignore"
+    assert ignore_file.is_file()
+    content = ignore_file.read_text()
+    assert "node_modules" in content
+
+
+def test_init_preserves_existing_contxignore(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.chdir(tmp_repo)
+    (tmp_repo / ".contxignore").write_text("# user's custom file\nuser/**\n")
+    runner.invoke(app, ["init"])
+    content = (tmp_repo / ".contxignore").read_text()
+    assert "user/**" in content  # untouched
