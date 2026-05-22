@@ -294,3 +294,22 @@ def test_draft_skips_blank_rationale(tmp_repo: Path, monkeypatch: pytest.MonkeyP
     assert result.exit_code == 0
     sidecar = tmp_repo / ".contx" / "src" / "foo.py.jsonl"
     assert not sidecar.is_file()
+
+
+def test_install_skill_command(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    monkeypatch.chdir(tmp_repo)
+    monkeypatch.setenv("CONTX_CLAUDE_HOME", str(tmp_path / "fake_claude"))
+    result = runner.invoke(app, ["install-skill"])
+    assert result.exit_code == 0, result.output
+    dest = tmp_path / "fake_claude" / "skills" / "contx" / "SKILL.md"
+    assert dest.is_file()
+    assert "contx — git for context" in dest.read_text()
+
+
+def test_uninstall_skill_command(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    monkeypatch.chdir(tmp_repo)
+    monkeypatch.setenv("CONTX_CLAUDE_HOME", str(tmp_path / "fake_claude"))
+    runner.invoke(app, ["install-skill"])
+    result = runner.invoke(app, ["uninstall-skill"])
+    assert result.exit_code == 0
+    assert not (tmp_path / "fake_claude" / "skills" / "contx").exists()

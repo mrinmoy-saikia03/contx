@@ -26,6 +26,7 @@ from contx.repo import (
     is_initialized,
 )
 from contx.store import append_entry, fold_entries, read_entries
+from contx.skill_install import install_skill, uninstall_skill
 
 app = typer.Typer(help="contx — git for context", no_args_is_help=True)
 
@@ -274,6 +275,42 @@ def draft(
 
     subprocess.run(["git", "-C", str(repo), "add", ".contx"], check=False)
     typer.echo(f"appended {written} entries and staged .contx/. Run `git commit` again.")
+
+
+def _source_repo_root() -> Path:
+    """Locate the source repo root that holds skills/contx/SKILL.md."""
+    import contx as _contx_pkg
+    pkg_dir = Path(_contx_pkg.__file__).resolve().parent  # .../contx_repo/contx/
+    candidates = [pkg_dir.parent, pkg_dir.parent.parent]
+    for c in candidates:
+        if (c / "skills" / "contx" / "SKILL.md").is_file():
+            return c
+    raise FileNotFoundError(
+        "Could not locate skills/contx/SKILL.md relative to the installed contx package. "
+        "Re-install contx in editable mode (`pip install -e .`) from a checkout that includes skills/."
+    )
+
+
+def _claude_home_path() -> Path:
+    override = os.environ.get("CONTX_CLAUDE_HOME")
+    return Path(override) if override else Path.home() / ".claude"
+
+
+@app.command(name="install-skill")
+def install_skill_cmd() -> None:
+    """Install the contx Claude Code skill into ~/.claude/skills/contx/."""
+    src = _source_repo_root()
+    home = _claude_home_path()
+    dest = install_skill(src_repo=src, claude_home=home)
+    typer.echo(f"installed contx skill to {dest}")
+
+
+@app.command(name="uninstall-skill")
+def uninstall_skill_cmd() -> None:
+    """Remove the contx Claude Code skill from ~/.claude/skills/contx/."""
+    home = _claude_home_path()
+    uninstall_skill(claude_home=home)
+    typer.echo(f"removed contx skill from {home / 'skills' / 'contx'}")
 
 
 @app.command(name="_precommit-check", hidden=True)
