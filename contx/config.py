@@ -34,6 +34,7 @@ class Config:
     require_rationale_on_create: bool
     extract_rationale_on_modify: bool
     require_context_on_commit: bool = True
+    tracked_paths: list[dict] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if self.granularity not in _VALID_GRANULARITY:
@@ -42,14 +43,20 @@ class Config:
             )
 
 
+def _languages_to_tracked_paths(languages: list[str]) -> list[dict]:
+    return [{"glob": f"**/*.{ext}", "kind": "source", "summarizer": None} for ext in languages]
+
+
 def default_config() -> Config:
+    langs = list(DEFAULT_LANGUAGES)
     return Config(
         granularity="both",
-        languages=list(DEFAULT_LANGUAGES),
+        languages=langs,
         ignore=list(DEFAULT_IGNORE),
         require_rationale_on_create=True,
         extract_rationale_on_modify=True,
         require_context_on_commit=True,
+        tracked_paths=_languages_to_tracked_paths(langs),
     )
 
 
@@ -67,6 +74,10 @@ def load_config(repo_root: Path) -> Config:
     if not p.is_file():
         raise FileNotFoundError(f"No contx config at {p}. Run `contx init` first.")
     data = json.loads(p.read_text())
+    if "tracked_paths" not in data:
+        tracked_paths = _languages_to_tracked_paths(list(data["languages"]))
+    else:
+        tracked_paths = list(data["tracked_paths"])
     return Config(
         granularity=data["granularity"],
         languages=list(data["languages"]),
@@ -74,4 +85,5 @@ def load_config(repo_root: Path) -> Config:
         require_rationale_on_create=bool(data["require_rationale_on_create"]),
         extract_rationale_on_modify=bool(data["extract_rationale_on_modify"]),
         require_context_on_commit=bool(data.get("require_context_on_commit", True)),
+        tracked_paths=list(tracked_paths),
     )

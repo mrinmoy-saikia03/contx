@@ -65,3 +65,40 @@ def test_config_can_disable_commit_enforcement(tmp_repo: Path):
     save_config(tmp_repo, cfg)
     loaded = load_config(tmp_repo)
     assert loaded.require_context_on_commit is False
+
+
+def test_default_config_has_tracked_paths_with_kind_source(tmp_repo):
+    from contx.config import default_config
+    cfg = default_config()
+    # tracked_paths is derived from languages on first read
+    assert any(tp["kind"] == "source" for tp in cfg.tracked_paths)
+
+
+def test_config_serializes_tracked_paths(tmp_repo):
+    from contx.config import Config, save_config, load_config
+    cfg = Config(
+        granularity="both",
+        languages=["py"],
+        ignore=[],
+        require_rationale_on_create=True,
+        extract_rationale_on_modify=True,
+        require_context_on_commit=True,
+        tracked_paths=[
+            {"glob": "**/*.py", "kind": "source", "summarizer": None},
+            {"glob": "k8s/**/*.yaml", "kind": "deploy", "summarizer": "kubernetes"},
+        ],
+    )
+    save_config(tmp_repo, cfg)
+    loaded = load_config(tmp_repo)
+    assert {tp["kind"] for tp in loaded.tracked_paths} == {"source", "deploy"}
+
+
+def test_legacy_config_without_tracked_paths_projects_languages(tmp_repo):
+    import json
+    from contx.config import default_config, save_config, load_config
+    save_config(tmp_repo, default_config())
+    raw = json.loads((tmp_repo / ".contx" / "config.json").read_text())
+    raw.pop("tracked_paths", None)
+    (tmp_repo / ".contx" / "config.json").write_text(json.dumps(raw))
+    loaded = load_config(tmp_repo)
+    assert any(tp["kind"] == "source" and tp["glob"].endswith("py") for tp in loaded.tracked_paths)
