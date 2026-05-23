@@ -15,7 +15,9 @@ class SummaryEntry:
 
 
 def _register_builtin_summarizers() -> None:
-    pass  # filled in as summarizers are added (Tasks 5, 6)
+    from contx.summarizers.kubernetes import summarize_kubernetes
+    from contx.summarizers.registry import register_summarizer
+    register_summarizer("kubernetes", summarize_kubernetes)
 
 
 _register_builtin_summarizers()
