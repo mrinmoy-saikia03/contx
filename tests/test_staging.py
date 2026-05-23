@@ -85,3 +85,27 @@ def test_compute_drift_respects_contxignore(tmp_repo: Path):
     _write_and_stage(tmp_repo, "vendor/lib.py", "x = 1\n")
     drift = compute_drift(tmp_repo)
     assert "vendor/lib.py" not in drift.missing
+
+
+def test_compute_drift_flags_deploy_yaml(tmp_repo):
+    import json
+    from contx.config import default_config, save_config
+    from contx.staging import compute_drift
+    save_config(tmp_repo, default_config())
+    # Add a deploy tracked-path to config
+    cfg_path = tmp_repo / ".contx" / "config.json"
+    raw = json.loads(cfg_path.read_text())
+    raw["tracked_paths"].append({"glob": "k8s/**/*.yaml", "kind": "deploy", "summarizer": "kubernetes"})
+    cfg_path.write_text(json.dumps(raw))
+    _write_and_stage(tmp_repo, "k8s/auth.yaml", "apiVersion: v1\n")
+    drift = compute_drift(tmp_repo)
+    assert "k8s/auth.yaml" in drift.missing
+
+
+def test_compute_drift_ignores_unmatched_path(tmp_repo):
+    from contx.config import default_config, save_config
+    from contx.staging import compute_drift
+    save_config(tmp_repo, default_config())
+    _write_and_stage(tmp_repo, "something.xyz", "blob")
+    drift = compute_drift(tmp_repo)
+    assert "something.xyz" not in drift.missing

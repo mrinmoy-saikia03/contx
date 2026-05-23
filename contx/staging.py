@@ -40,7 +40,7 @@ def compute_drift(repo_root: Path) -> Drift:
     except FileNotFoundError:
         return Drift(missing=[], uninitialized=True)
 
-    extensions = {f".{ext}" for ext in cfg.languages}
+    tracked_globs = [tp["glob"] for tp in cfg.tracked_paths]
     from contx.ignore import load_effective_ignore_patterns
     ignore = load_effective_ignore_patterns(repo_root)
 
@@ -60,8 +60,7 @@ def compute_drift(repo_root: Path) -> Drift:
     for p in staged:
         if p.startswith(f"{CTX_DIR}/"):
             continue
-        ext = Path(p).suffix
-        if ext not in extensions:
+        if not _matches_any(p, tracked_globs):
             continue
         if _matches_any(p, ignore):
             continue
