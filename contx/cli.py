@@ -68,24 +68,67 @@ def version() -> None:
 @app.command()
 def init(
     no_hook: bool = typer.Option(False, "--no-hook", help="Skip installing the pre-commit hook"),
+    no_bootstrap: bool = typer.Option(False, "--no-bootstrap", help="Skip bootstrap pass after init"),
+    bootstrap_ast: bool = typer.Option(False, "--bootstrap-ast", help="Bootstrap from AST only (skip git history)"),
+    bootstrap_git: bool = typer.Option(False, "--bootstrap-git", help="Bootstrap from git history only (skip AST)"),
 ) -> None:
     """Initialize contx for the current git repo."""
     repo = _resolve_repo()
-    if is_initialized(repo):
+    fresh = not is_initialized(repo)
+    if not fresh:
         typer.echo(f"contx already initialized at {repo / '.contx'}")
-        if not no_hook and not is_pre_commit_hook_installed(repo):
-            install_pre_commit_hook(repo)
-            typer.echo(f"installed pre-commit hook at {repo / '.git' / 'hooks' / 'pre-commit'}")
-        if _write_default_contxignore(repo):
-            typer.echo(f"created .contxignore at {repo / '.contxignore'}")
-        return
-    save_config(repo, default_config())
-    typer.echo(f"initialized contx at {repo / '.contx'}")
-    if not no_hook:
+    else:
+        save_config(repo, default_config())
+        typer.echo(f"initialized contx at {repo / '.contx'}")
+
+    if not no_hook and not is_pre_commit_hook_installed(repo):
         install_pre_commit_hook(repo)
         typer.echo(f"installed pre-commit hook at {repo / '.git' / 'hooks' / 'pre-commit'}")
+
     if _write_default_contxignore(repo):
         typer.echo(f"created .contxignore at {repo / '.contxignore'}")
+
+    if not no_bootstrap and fresh:
+        do_ast = not bootstrap_git
+        do_git = not bootstrap_ast
+        try:
+            written = bootstrap_repo(repo, do_ast=do_ast, do_git=do_git)
+            typer.echo(f"bootstrap wrote {written} entries (tag=bootstrap, agent=audit)")
+        except RuntimeError as exc:
+            typer.echo(f"bootstrap skipped: {exc}")
+
+
+@app.command()
+def bootstrap(
+    ast: bool = typer.Option(False, "--ast", help="AST only (skip git history)"),
+    git: bool = typer.Option(False, "--git", help="Git history only (skip AST)"),
+    force: bool = typer.Option(False, "--force", help="Re-run even if already bootstrapped"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print counts without writing"),
+    since: str | None = typer.Option(None, "--since", help="Git ref to start history walk from"),
+) -> None:
+    """Seed entries from git history + AST. Run on already-initialized repos."""
+    repo = _resolve_repo()
+    if not is_initialized(repo):
+        typer.echo("error: contx not initialized. Run `contx init --no-bootstrap` first.", err=True)
+        raise typer.Exit(code=2)
+    do_ast = not git
+    do_git = not ast
+    try:
+        written = bootstrap_repo(
+            repo,
+            do_ast=do_ast,
+            do_git=do_git,
+            force=force,
+            dry_run=dry_run,
+            since=since,
+        )
+    except RuntimeError as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=2)
+    if dry_run:
+        typer.echo(f"dry-run: would write {written} entries")
+    else:
+        typer.echo(f"bootstrap wrote {written} entries (tag=bootstrap, agent=audit)")
 
 
 @app.command(name="install-hook")
@@ -223,6 +266,7 @@ def log_cmd(ref: str = typer.Argument(..., help="file path, or file::symbol")) -
         typer.echo("")
 
 
+from contx.bootstrap import bootstrap_repo
 from contx.staging import compute_drift
 
 

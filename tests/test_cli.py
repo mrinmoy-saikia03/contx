@@ -338,3 +338,67 @@ def test_init_preserves_existing_contxignore(tmp_repo: Path, monkeypatch: pytest
     runner.invoke(app, ["init"])
     content = (tmp_repo / ".contxignore").read_text()
     assert "user/**" in content  # untouched
+
+
+def test_init_with_bootstrap_default_runs_ast(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.chdir(tmp_repo)
+    (tmp_repo / "src").mkdir()
+    (tmp_repo / "src" / "a.py").write_text('"""mod"""\ndef hi():\n    """h"""\n    pass\n')
+    result = runner.invoke(app, ["init"])
+    assert result.exit_code == 0
+    sidecar = tmp_repo / ".contx" / "src" / "a.py.jsonl"
+    assert sidecar.is_file()
+    assert "mod" in sidecar.read_text()
+
+
+def test_init_no_bootstrap_skips_bootstrap(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.chdir(tmp_repo)
+    (tmp_repo / "src").mkdir()
+    (tmp_repo / "src" / "a.py").write_text('"""mod"""\ndef hi(): pass\n')
+    result = runner.invoke(app, ["init", "--no-bootstrap"])
+    assert result.exit_code == 0
+    sidecar = tmp_repo / ".contx" / "src" / "a.py.jsonl"
+    assert not sidecar.exists()
+
+
+def test_bootstrap_command_on_already_initialized_repo(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.chdir(tmp_repo)
+    runner.invoke(app, ["init", "--no-bootstrap"])
+    (tmp_repo / "src").mkdir()
+    (tmp_repo / "src" / "a.py").write_text('"""mod"""\ndef hi(): pass\n')
+    result = runner.invoke(app, ["bootstrap"])
+    assert result.exit_code == 0, result.output
+    sidecar = tmp_repo / ".contx" / "src" / "a.py.jsonl"
+    assert sidecar.is_file()
+
+
+def test_bootstrap_refuses_second_run_without_force(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.chdir(tmp_repo)
+    runner.invoke(app, ["init"])
+    (tmp_repo / "src").mkdir()
+    (tmp_repo / "src" / "a.py").write_text('def hi(): pass\n')
+    runner.invoke(app, ["bootstrap"])
+    result = runner.invoke(app, ["bootstrap"])
+    assert result.exit_code != 0
+    assert "already bootstrapped" in result.output.lower()
+
+
+def test_bootstrap_force_succeeds(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.chdir(tmp_repo)
+    runner.invoke(app, ["init"])
+    (tmp_repo / "src").mkdir()
+    (tmp_repo / "src" / "a.py").write_text('def hi(): pass\n')
+    runner.invoke(app, ["bootstrap"])
+    result = runner.invoke(app, ["bootstrap", "--force"])
+    assert result.exit_code == 0, result.output
+
+
+def test_bootstrap_dry_run_writes_nothing(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.chdir(tmp_repo)
+    runner.invoke(app, ["init", "--no-bootstrap"])
+    (tmp_repo / "src").mkdir()
+    (tmp_repo / "src" / "a.py").write_text('def hi(): pass\n')
+    result = runner.invoke(app, ["bootstrap", "--dry-run"])
+    assert result.exit_code == 0
+    sidecar = tmp_repo / ".contx" / "src" / "a.py.jsonl"
+    assert not sidecar.exists()
