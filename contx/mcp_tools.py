@@ -179,7 +179,7 @@ def audit(repo_root: Path) -> dict:
     except FileNotFoundError:
         return {"orphan_sidecars": [], "untracked_files": [], "warning": "contx not initialized"}
 
-    extensions = {f".{ext}" for ext in cfg.languages}
+    tracked_globs = [tp["glob"] for tp in cfg.tracked_paths]
     from contx.ignore import load_effective_ignore_patterns, matches_any_pattern
     ignore = load_effective_ignore_patterns(repo_root)
 
@@ -196,15 +196,15 @@ def audit(repo_root: Path) -> dict:
             if not source.is_file():
                 orphans.append({"file": rel, "sidecar": str(sidecar.relative_to(repo_root))})
 
-    # 2. Untracked: walk repo, find files matching extensions but with no sidecar, not ignored
+    # 2. Untracked: walk repo, find files matching tracked globs but with no sidecar, not ignored
     untracked: list[str] = []
     for path in sorted(repo_root.rglob("*")):
         if not path.is_file():
             continue
-        if path.suffix not in extensions:
-            continue
         rel = str(path.relative_to(repo_root))
         if rel.startswith(f"{CTX_DIR}/") or rel.startswith(".git/"):
+            continue
+        if not matches_any_pattern(rel, tracked_globs):
             continue
         if matches_any_pattern(rel, ignore):
             continue

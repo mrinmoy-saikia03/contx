@@ -207,3 +207,18 @@ def test_audit_respects_contxignore(tmp_repo: Path):
     (tmp_repo / "legacy" / "old.py").write_text("pass\n")
     result = audit_tool(tmp_repo)
     assert "legacy/old.py" not in result["untracked_files"]
+
+
+def test_audit_finds_untracked_deploy_yaml(tmp_repo):
+    import json
+    from contx.config import default_config, save_config
+    from contx.mcp_tools import audit as audit_tool
+    save_config(tmp_repo, default_config())
+    cfg_path = tmp_repo / ".contx" / "config.json"
+    raw = json.loads(cfg_path.read_text())
+    raw["tracked_paths"].append({"glob": "k8s/**/*.yaml", "kind": "deploy", "summarizer": "kubernetes"})
+    cfg_path.write_text(json.dumps(raw))
+    (tmp_repo / "k8s").mkdir()
+    (tmp_repo / "k8s" / "service.yaml").write_text("apiVersion: v1")
+    result = audit_tool(tmp_repo)
+    assert "k8s/service.yaml" in result["untracked_files"]
