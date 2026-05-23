@@ -39,6 +39,7 @@ contx log src/foo.py
 | `contx draft [--from-transcript]` | Interactive editor for drifted files; appends entries and re-stages `.contx/`. |
 | `contx install-hook` / `contx uninstall-hook` | Install or remove the pre-commit hook (`contx init` installs it by default; use `init --no-hook` to skip). |
 | `contx install-skill` / `contx uninstall-skill` | Install or remove the Claude Code skill at `~/.claude/skills/contx/`. |
+| `contx bootstrap [--ast] [--git] [--since REF] [--dry-run] [--force]` | Seed entries from git history + AST on an already-initialized repo. |
 | `contx serve [--port 4242] [--host 127.0.0.1]` | Launch the read-only local web UI. |
 | `contx version` | Print version. |
 
@@ -202,6 +203,39 @@ Supported syntax (subset of gitignore):
 
 Affects: drift detection (pre-commit hook), `contx_audit`, and any future tooling that walks the source tree.
 
+## Bootstrapping a brownfield repo
+
+On an existing repo, `contx init` automatically runs a bootstrap pass after initialization (pass `--no-bootstrap` to skip). The bootstrap walks the source tree with `ast` and emits one baseline entry per file/symbol, using docstrings where available.
+
+```bash
+contx init                  # init + AST bootstrap (default)
+contx init --no-bootstrap   # init only, no entries written
+contx init --bootstrap-ast  # AST only (skip git history)
+contx init --bootstrap-git  # git history only (skip AST)
+```
+
+On an already-initialized repo, use the standalone `contx bootstrap` command:
+
+```bash
+contx bootstrap             # AST + git history (default)
+contx bootstrap --ast       # AST only
+contx bootstrap --git       # git history only
+contx bootstrap --since v1.0.0   # only commits after a ref
+contx bootstrap --dry-run   # print counts without writing
+contx bootstrap --force     # re-run even if already bootstrapped
+```
+
+### What gets written
+
+- **AST pass:** one `file`-kind entry per Python file (rationale = module docstring), plus one `symbol`-kind entry per top-level function/class/method (rationale = docstring). Tagged `bootstrap`.
+- **Git history pass:** one `file`-kind entry per non-noisy commit × file touched. First occurrence is `created`, subsequent are `modified`. Tagged `bootstrap` + `git-history`. Noisy commits (WIP, typo, lint, merge, bump, chore(deps), tiny diffs) are skipped automatically.
+
+All bootstrap entries carry `agent="audit"` so they're distinguishable from human-written or agent-written context.
+
+### Idempotence
+
+Running bootstrap twice without `--force` raises an error: `repo already bootstrapped`. With `--force`, a supersede marker entry is appended to each already-bootstrapped sidecar before the new entries are written.
+
 ## Storage layout
 
 contx stores entries in JSONL sidecars under `.contx/`, mirroring the source tree:
@@ -218,5 +252,5 @@ Each line of the sidecar is one entry: `{id, kind, symbol, event, rationale, tag
 
 ## Status
 
-Plans 1–5 plus backlog item B1 (`.contxignore`) shipped: storage + CLI, MCP server, pre-commit hook, `contx draft`, Claude Code skill, local web UI, and per-repo ignore file. Remaining backlog items: tuple-vs-list immutability on `Entry.tags`/`related`, SessionStart skill auto-load, `__main__.py` test coverage. See `docs/plans/` and `docs/BACKLOG.md`.
+Plans 1–5 plus backlog items B1 (`.contxignore`) and B2 (bootstrap) shipped: storage + CLI, MCP server, pre-commit hook, `contx draft`, Claude Code skill, local web UI, per-repo ignore file, and brownfield bootstrap from AST + git history. Remaining backlog items: B3 (deployment awareness), B4 (diagrams), tuple-vs-list immutability on `Entry.tags`/`related`, SessionStart skill auto-load, `__main__.py` test coverage. See `docs/plans/` and `docs/BACKLOG.md`.
 
