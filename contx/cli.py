@@ -504,3 +504,37 @@ def bootstrap_deploy() -> None:
                 written += 1
 
     typer.echo(f"bootstrap-deploy wrote {written} summary entries")
+
+
+@app.command()
+def diagram(
+    type_: str = typer.Option("files", "--type", help="files | symbols | deploy"),
+    out: Path | None = typer.Option(None, "--out", help="Output path (defaults to .contx/diagrams/<type>.drawio)"),
+) -> None:
+    """Render the intent graph as a draw.io XML file."""
+    from contx.diagram.drawio import emit_drawio
+    from contx.diagram.graph import build_file_graph
+    from contx.diagram.layout import compute_positions
+
+    repo = _resolve_repo()
+    if not is_initialized(repo):
+        typer.echo("error: contx not initialized. Run `contx init` first.", err=True)
+        raise typer.Exit(code=2)
+
+    if type_ == "files":
+        graph = build_file_graph(repo)
+    elif type_ in ("symbols", "deploy"):
+        typer.echo(f"error: --type {type_} not yet implemented (only 'files' is available in MVP)", err=True)
+        raise typer.Exit(code=2)
+    else:
+        typer.echo(f"error: unknown --type {type_!r}; expected files|symbols|deploy", err=True)
+        raise typer.Exit(code=2)
+
+    positions = compute_positions(graph)
+    xml = emit_drawio(graph, positions=positions)
+
+    if out is None:
+        out = repo / ".contx" / "diagrams" / f"{type_}.drawio"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(xml)
+    typer.echo(f"wrote {out} ({len(graph.nodes)} nodes, {len(graph.edges)} edges)")

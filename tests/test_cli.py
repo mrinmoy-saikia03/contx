@@ -404,6 +404,59 @@ def test_bootstrap_dry_run_writes_nothing(tmp_repo: Path, monkeypatch: pytest.Mo
     assert not sidecar.exists()
 
 
+def test_diagram_files_writes_drawio(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    from datetime import datetime, timezone
+    from contx.entry import Entry
+    from contx.store import append_entry
+
+    monkeypatch.chdir(tmp_repo)
+    runner.invoke(app, ["init", "--no-bootstrap"])
+    entry = Entry(
+        id="01HXYZ0000000000000000000K",
+        kind="file", symbol=None, event="created", rationale="auth module",
+        tags=[], author="t@x",
+        timestamp=datetime(2026, 5, 21, tzinfo=timezone.utc),
+        agent="human-cli", related=[],
+    )
+    append_entry(tmp_repo, "src/auth.py", entry)
+    result = runner.invoke(app, ["diagram"])
+    assert result.exit_code == 0, result.output
+    out_path = tmp_repo / ".contx" / "diagrams" / "files.drawio"
+    assert out_path.is_file()
+    content = out_path.read_text()
+    assert "<mxfile" in content
+    assert "src/auth.py" in content
+
+
+def test_diagram_with_custom_out(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    from datetime import datetime, timezone
+    from contx.entry import Entry
+    from contx.store import append_entry
+
+    monkeypatch.chdir(tmp_repo)
+    runner.invoke(app, ["init", "--no-bootstrap"])
+    entry = Entry(
+        id="01HXYZ0000000000000000000K",
+        kind="file", symbol=None, event="created", rationale="x",
+        tags=[], author="t@x",
+        timestamp=datetime(2026, 5, 21, tzinfo=timezone.utc),
+        agent="human-cli", related=[],
+    )
+    append_entry(tmp_repo, "src/a.py", entry)
+    out = tmp_path / "custom.drawio"
+    result = runner.invoke(app, ["diagram", "--out", str(out)])
+    assert result.exit_code == 0
+    assert out.is_file()
+
+
+def test_diagram_unsupported_type_errors(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.chdir(tmp_repo)
+    runner.invoke(app, ["init", "--no-bootstrap"])
+    result = runner.invoke(app, ["diagram", "--type", "symbols"])
+    assert result.exit_code != 0
+    assert "not implemented" in result.output.lower() or "not yet" in result.output.lower()
+
+
 def test_bootstrap_deploy_writes_summaries(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
     import json
     monkeypatch.chdir(tmp_repo)
