@@ -485,6 +485,56 @@ def test_ignore_creates_contxignore_if_missing(tmp_repo: Path, monkeypatch: pyte
     assert "tmp/**" in (tmp_repo / ".contxignore").read_text()
 
 
+def test_export_markdown_writes_file(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    from datetime import datetime, timezone
+    from contx.entry import Entry
+    from contx.store import append_entry
+
+    monkeypatch.chdir(tmp_repo)
+    runner.invoke(app, ["init", "--no-bootstrap"])
+    append_entry(tmp_repo, "src/auth.py", Entry(
+        id="01HXYZ0000000000000000000K",
+        kind="file", symbol=None, event="created",
+        rationale="auth module purpose X",
+        tags=["compliance"], author="t@x",
+        timestamp=datetime(2026, 5, 21, tzinfo=timezone.utc),
+        agent="human-cli", related=[],
+    ))
+    append_entry(tmp_repo, "src/auth.py", Entry(
+        id="01HXYZ0000000000000000000L",
+        kind="symbol", symbol="login", event="created",
+        rationale="email only because GDPR Y",
+        tags=["gdpr"], author="t@x",
+        timestamp=datetime(2026, 5, 21, tzinfo=timezone.utc),
+        agent="human-cli", related=[],
+    ))
+    out = tmp_repo / "INTENT.md"
+    result = runner.invoke(app, ["export", "--format", "markdown", "--out", str(out)])
+    assert result.exit_code == 0, result.output
+    assert out.is_file()
+    text = out.read_text()
+    assert "auth module purpose X" in text
+    assert "email only because GDPR Y" in text
+    assert "src/auth.py" in text
+
+
+def test_export_default_path_under_contx(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.chdir(tmp_repo)
+    runner.invoke(app, ["init", "--no-bootstrap"])
+    result = runner.invoke(app, ["export", "--format", "markdown"])
+    assert result.exit_code == 0
+    default = tmp_repo / ".contx" / "INTENT.md"
+    assert default.is_file()
+
+
+def test_export_unsupported_format_errors(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.chdir(tmp_repo)
+    runner.invoke(app, ["init", "--no-bootstrap"])
+    result = runner.invoke(app, ["export", "--format", "pdf"])
+    assert result.exit_code != 0
+    assert "format" in result.output.lower()
+
+
 def test_bootstrap_deploy_writes_summaries(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
     import json
     monkeypatch.chdir(tmp_repo)

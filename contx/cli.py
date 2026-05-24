@@ -164,6 +164,50 @@ def ignore_cmd(
     typer.echo(f"appended {pattern} to {path.relative_to(repo)}")
 
 
+@app.command()
+def export(
+    format: str = typer.Option("markdown", "--format", help="Output format (markdown only for MVP)"),
+    out: Path | None = typer.Option(None, "--out", help="Output path (default: .contx/INTENT.md)"),
+) -> None:
+    """Export the repo's intent map as a human-readable document."""
+    from contx.paths import CTX_DIR, SIDECAR_SUFFIX, source_path_for_sidecar
+
+    repo = _resolve_repo()
+    if not is_initialized(repo):
+        typer.echo("error: contx not initialized. Run `contx init` first.", err=True)
+        raise typer.Exit(code=2)
+    if format != "markdown":
+        typer.echo(f"error: unsupported --format {format!r} (only 'markdown' is supported)", err=True)
+        raise typer.Exit(code=2)
+
+    out_path = out or (repo / CTX_DIR / "INTENT.md")
+    ctx_dir = repo / CTX_DIR
+
+    lines: list[str] = ["# contx intent map\n"]
+    sidecars = sorted(ctx_dir.rglob(f"*{SIDECAR_SUFFIX}")) if ctx_dir.is_dir() else []
+    for sidecar in sidecars:
+        try:
+            src = source_path_for_sidecar(repo, sidecar)
+        except ValueError:
+            continue
+        rel = str(src.relative_to(repo))
+        entries = read_entries(repo, rel)
+        if not entries:
+            continue
+        folded = fold_entries(entries)
+        lines.append(f"## {rel}\n")
+        if folded.file_intent:
+            lines.append(f"{folded.file_intent}\n")
+        for sym, intent in sorted(folded.symbols.items()):
+            lines.append(f"### {sym}\n")
+            lines.append(f"{intent}\n")
+        lines.append("")
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text("\n".join(lines))
+    typer.echo(f"wrote {out_path.relative_to(repo) if out_path.is_relative_to(repo) else out_path}")
+
+
 def _git_author(repo: Path) -> str:
     """Read the user.email from git config, falling back to 'unknown'."""
     import subprocess
