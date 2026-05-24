@@ -440,3 +440,67 @@ def _precommit_check() -> None:
         for f in drift.missing:
             typer.echo(f"  - {f}")
         return
+
+
+@app.command(name="bootstrap-deploy")
+def bootstrap_deploy() -> None:
+    """Run all registered summarizers over their matching tracked_paths."""
+    from datetime import datetime, timezone
+    from ulid import ULID
+    from contx.config import load_config
+    from contx.entry import Entry
+    from contx.ignore import matches_any_pattern
+    from contx.paths import CTX_DIR
+    from contx.store import append_entry
+    from contx.summarizers.registry import get_summarizer
+
+    repo = _resolve_repo()
+    if not is_initialized(repo):
+        typer.echo("error: contx not initialized. Run `contx init --no-bootstrap` first.", err=True)
+        raise typer.Exit(code=2)
+
+    cfg = load_config(repo)
+    written = 0
+    now = datetime.now(timezone.utc)
+
+    for tp in cfg.tracked_paths:
+        if tp.get("kind") != "deploy":
+            continue
+        sname = tp.get("summarizer")
+        if not sname:
+            continue
+        summarizer = get_summarizer(sname)
+        if summarizer is None:
+            typer.echo(f"warning: summarizer '{sname}' not found, skipping {tp['glob']}", err=True)
+            continue
+        glob = tp["glob"]
+        for path in sorted(repo.rglob("*")):
+            if not path.is_file():
+                continue
+            rel = str(path.relative_to(repo))
+            if rel.startswith(".git/") or rel.startswith(f"{CTX_DIR}/"):
+                continue
+            if not matches_any_pattern(rel, [glob]):
+                continue
+            try:
+                text = path.read_text()
+            except (OSError, UnicodeDecodeError):
+                continue
+            summaries = summarizer(text, rel)
+            for s in summaries:
+                entry = Entry(
+                    id=str(ULID()),
+                    kind="file" if s.symbol is None else "symbol",
+                    symbol=s.symbol,
+                    event="created",
+                    rationale=s.rationale,
+                    tags=list(s.tags),
+                    author="contx-bootstrap",
+                    timestamp=now,
+                    agent="audit",
+                    related=[],
+                )
+                append_entry(repo, rel, entry)
+                written += 1
+
+    typer.echo(f"bootstrap-deploy wrote {written} summary entries")

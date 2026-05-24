@@ -402,3 +402,25 @@ def test_bootstrap_dry_run_writes_nothing(tmp_repo: Path, monkeypatch: pytest.Mo
     assert result.exit_code == 0
     sidecar = tmp_repo / ".contx" / "src" / "a.py.jsonl"
     assert not sidecar.exists()
+
+
+def test_bootstrap_deploy_writes_summaries(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    import json
+    monkeypatch.chdir(tmp_repo)
+    runner.invoke(app, ["init", "--no-bootstrap"])
+    # Add a k8s tracked-path
+    cfg_path = tmp_repo / ".contx" / "config.json"
+    raw = json.loads(cfg_path.read_text())
+    raw["tracked_paths"].append({"glob": "k8s/**/*.yaml", "kind": "deploy", "summarizer": "kubernetes"})
+    cfg_path.write_text(json.dumps(raw))
+    (tmp_repo / "k8s").mkdir()
+    (tmp_repo / "k8s" / "auth.yaml").write_text(
+        "apiVersion: apps/v1\nkind: Deployment\nmetadata: {name: auth, namespace: prod}\nspec: {replicas: 2}\n"
+    )
+    result = runner.invoke(app, ["bootstrap-deploy"])
+    assert result.exit_code == 0, result.output
+    sidecar = tmp_repo / ".contx" / "k8s" / "auth.yaml.jsonl"
+    assert sidecar.is_file()
+    content = sidecar.read_text()
+    assert "Deployment" in content
+    assert "auto-summary" in content
