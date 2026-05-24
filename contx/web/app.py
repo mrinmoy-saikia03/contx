@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import socket
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -14,6 +15,22 @@ from contx.repo import find_repo_root
 from contx.store import fold_entries, read_entries
 
 _TEMPLATES_DIR = Path(__file__).parent / "templates"
+
+
+def find_open_port(start: int, host: str = "127.0.0.1", *, attempts: int = 10) -> int:
+    """Return the first port in [start, start+attempts) that's free to bind on host.
+
+    Raises OSError if none in the range are free.
+    """
+    for offset in range(attempts):
+        port = start + offset
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind((host, port))
+            except OSError:
+                continue
+            return port
+    raise OSError(f"no free port in {start}..{start + attempts - 1} on {host}")
 
 
 def _repo_root() -> Path:
