@@ -33,11 +33,14 @@ Reverses `install.sh`: removes the package (pipx or local venv), the Claude skil
 ## Quickstart
 
 ```bash
-contx init
+contx init                    # interactive setup: prompts for hook, enforcement, granularity, deploy manifests
+contx init -y                 # accept all defaults (good for scripts/CI)
 contx append --ref src/foo.py::bar --event created --rationale "why this exists"
 contx show src/foo.py::bar
 contx log src/foo.py
 ```
+
+`contx init` is interactive when stdin is a terminal. Pass `-y`/`--yes` to skip prompts, or `--no-hook` to skip the pre-commit hook question entirely. The settings you choose at init time are saved to `.contx/config.json` and can be edited later.
 
 ## CLI commands
 
