@@ -51,6 +51,33 @@ Every edit after that is cheap: the rationale is already in the conversation, th
 
 Compare that to the alternative: every onboarding-driven re-derivation of intent, every "wait why is this here" Slack thread, every refactor that re-creates an old bug — repeated forever, across every engineer who touches the codebase. The first-run bootstrap pays itself back inside the first sprint.
 
+## The web viewer (`contx serve`)
+
+Slash commands are how the agent writes context. **The web viewer is how humans read it.**
+
+```bash
+contx serve              # localhost:4242
+contx serve --port 8080  # any port (auto-falls-back to the next 9 if 4242 is taken)
+```
+
+A local, read-only, server-rendered web UI over the `.contx/` tree. No login, no edits, no JS bundle, no build step — just plain HTML with a sprinkle of htmx so search feels live. Page weight is a few KB.
+
+### What's in it
+
+| View | What it shows |
+|---|---|
+| `/` — **file tree** | Every source file that has at least one context entry. Click any file to drill in. Grouped by top-level directory so it stays readable on big repos. |
+| `/file/<path>` — **file view** | The folded "current" file-level intent at the top, followed by a list of every symbol in the file with its one-line rationale. Then the full append-only log of every entry on that file, in order — author, timestamp, event type (`created` / `modified` / `renamed_in` / `moved_out` / `deleted` / …), tags, and rationale. Each entry visually distinct so you can scan history quickly. |
+| `/symbol/<file>::<symbol>` — **symbol view** | Same shape as the file view but zoomed to one function/class. Latest rationale is the headline; everything that came before it is the timeline. Renames and moves show their backlinks so you can follow a symbol across files when it was refactored. |
+| `/search?q=…` — **full-text search** | Substring search across every rationale and every tag in the repo. Live-updates via htmx as you type. Tag any entry with `incident`, `compliance`, `gdpr`, `performance` and you can pull every related decision out in one query. |
+| `/timeline` — **timeline** | The most recent entries across the entire repo, newest first. Like a `git log` for *intent* — see what was decided this week, who decided it, and why. Great for sprint retros and "what changed in this area lately." |
+
+### Why a web view instead of a CLI-only tool
+
+The CLI (`contx show`, `contx log`) is fine for one symbol at a time. The web viewer is for **navigation and discovery** — the cases where you don't yet know what you're looking for. Browsing a fresh codebase, prepping for an architecture review, doing an incident post-mortem and wanting to find every entry tagged `incident` for that subsystem, onboarding a new hire and just letting them poke around. The page weight is small enough you could ship it to a tablet on a kanban board if you wanted.
+
+It's deliberately **read-only**. Writes happen one way: through AI agents (via MCP) or through the CLI. The viewer just renders. That separation means there's no auth layer to build, no audit trail to maintain, and no risk of a stale browser tab silently corrupting state.
+
 ### Why this isn't already a thing
 
 A few teams already do something like this: spec-first development, RFCs, "WHY.md" in critical directories. They work for the things they cover. The reason that approach hasn't generalized: it costs human discipline. The doc lives one layer away from the line. There's no enforcement. Two refactors later it's wrong.

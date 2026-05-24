@@ -10,7 +10,9 @@ That knowledge usually lives in Slack threads, half-updated decision docs, and t
 
 I built **contx** — an append-only log of *why* each file and function exists, version-controlled in a `.contx/` directory alongside the code. Same way every dev who clones the repo has the same code, they now share the same context.
 
-The interesting bit: the entries aren't typed by humans. They're written by AI coding agents (Claude, Cursor, anything MCP-capable) at the moment they make a change — paired with the edit, capturing the rationale from the conversation. A pre-commit hook keeps the pairing honest. A web viewer lets anyone browse the intent map.
+The interesting bit: the entries aren't typed by humans. They're written by AI coding agents (Claude, Cursor, anything MCP-capable) at the moment they make a change — paired with the edit, capturing the rationale from the conversation. A pre-commit hook keeps the pairing honest.
+
+To read it back, there's a local web viewer — `contx serve` opens a read-only UI at localhost: file tree, per-symbol intent + full history, full-text search across every rationale and tag, and a "git log for intent" timeline view across the whole repo. Server-rendered HTML + htmx, no JS bundle, no build step, no auth (you're reading your own repo on your own machine). The CLI handles single-symbol queries; the web viewer is for discovery — onboarding a new hire, prepping a post-mortem, scanning every entry tagged `incident` in a subsystem.
 
 The bigger idea: once intent is a first-class versioned artifact, you can feed it into any AI agent — code review, onboarding, refactoring, runbooks — as the canonical source of "what we meant." Today every agent re-derives intent from scratch. With this, intent becomes shared infrastructure.
 
@@ -37,7 +39,7 @@ Code: <repo link>
 >
 > `git blame` tells you *who* and *when*. It never tells you *why*. That knowledge lives in Slack and senior engineers' heads, and AI coding agents have to re-derive it every time they touch a file.
 >
-> contx is an append-only log of *why* each function exists, version-controlled in `.contx/` alongside the code. AI agents write the entries as they edit — paired with every change, captured from the conversation. New devs clone the repo and get the intent map for free.
+> contx is an append-only log of *why* each function exists, version-controlled in `.contx/` alongside the code. AI agents write the entries as they edit — paired with every change, captured from the conversation. A local web viewer (`contx serve`) gives you file tree, per-symbol history, full-text search, and a "git log for intent" timeline. New devs clone the repo and get the whole intent map for free.
 >
 > Big caveat: weekend project. Works end-to-end but rough. Next up: real LLM context-gen, TS/Go support, IDE plugins.
 >
