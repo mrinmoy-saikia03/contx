@@ -28,20 +28,34 @@ AI coding agents change the calculus. They're already in the conversation where 
 
 contx is "git for context." Every file and every function gets an append-only log of *why* it exists, version-controlled alongside the code in a `.contx/` directory. Same idea as `.github/` or `__tests__/` — it travels with the repo.
 
-The interesting bit: the entries aren't written by humans typing into a markdown file. They're written by **AI coding agents** as they edit, through an MCP server. When Claude (or Cursor, or any MCP-capable agent) is told "switch the retry to linear," it calls `contx_append` in the same turn as its `Edit`, with a rationale captured from the conversation. A pre-commit hook blocks the commit if code changed without a paired context entry, so the pairing stays honest.
+The interesting bit: the entries aren't written by humans typing into a markdown file. They're written by **AI coding agents** as they edit. When Claude (or Cursor, or any MCP-capable agent) is told "switch the retry to linear," it calls `contx_append` in the same turn as its `Edit`, with a rationale captured from the conversation. A pre-commit hook blocks the commit if code changed without a paired context entry, so the pairing stays honest.
 
 When a new developer clones the repo, they get the code *and* the intent map. They can `contx serve` to browse it locally, or just ask Claude "why does `User.authenticate` exist?" and get a real answer pulled from the recorded entries — not a guess based on reading the code.
 
+## The minimal surface
+
+There are only **two pieces of Python** in the whole project. Everything else is Claude Code slash commands.
+
+| What | What it is | Why it has to be code |
+|---|---|---|
+| `contx-mcp` | MCP server exposing `contx_query`, `contx_append`, `contx_rename`, `contx_delete`, `contx_search`, `contx_audit` to any MCP-capable agent. | These are the read/write primitives over the `.contx/` JSONL store. They have to live in a process the agent can call — that's what an MCP server is. |
+| `contx serve` | Local read-only web viewer over the same JSONL store. | Slash commands can't host a TCP server. This is unavoidably a binary. |
+
+That's it. Everything else — init, bootstrap, append-by-hand, diagram, deploy-summary, drift fixing, install — is a Claude Code slash command. The reasoning: those workflows need *intelligence* (reading code, understanding intent, generating rationales), and that intelligence already lives in Claude. There's no reason to re-implement weaker versions of it in Python.
+
 ## The slash commands (where the intelligence lives)
 
-The MCP tools (`contx_append`, `contx_query`, etc.) are low-level — they're how the agent writes to the store. The *interesting* workflows are four Claude Code slash commands that orchestrate the agent's intelligence:
+The MCP tools (`contx_append`, `contx_query`, etc.) are low-level — they're how the agent writes to the store. Every actual *workflow* is a Claude Code slash command that orchestrates the agent's intelligence.
 
 | Command | What it does | Why it matters |
 |---|---|---|
+| `/contx-init` | Creates `.contx/`, writes `config.json`, installs the pre-commit hook, writes a starter `.contxignore`. Asks the user the same interactive questions the old Python CLI did (hook? enforcement mode? granularity? deploy manifests to track?). | Setup is now zero-Python from the user's side — they don't need pipx, a venv, or a CLI binary. Claude does it. |
 | `/contx-bootstrap` | Reads the whole codebase, reasons about why each file/function exists, and writes meaningful v0 entries via `contx_append`. | Brownfield repos get an instant baseline. Without this, every entry has to be earned through future edits — onboarding takes years. |
 | `/contx-explain <path>` | Improves or expands an existing entry's rationale by re-reading the code and the conversation. Good when the v0 was thin and you've since learned more. | Context refines over time the way the code does. Entries get sharper, not staler. |
 | `/contx-diagram <type>` | Reads + reasons about the architecture and generates a real `.drawio` file (files / symbols / deployment topology). | A force-directed graph algorithm gives you a noise hairball. Claude gives you "here's what actually matters and how the pieces connect," because it understands the code, not just the import graph. |
-| `/contx-deploy-summary` | Reads deployment YAMLs (k8s, GH Actions, docker-compose, Terraform) and writes *meaningful* context for them — not a structural dump of `kind:` and `name:`. | "Why is replicas=3? Why does this workflow only run on tags? What does this Helm value control?" — the things the YAML itself can't tell you. |
+| `/contx-deploy-summary` | Reads deployment YAMLs (k8s, GH Actions, docker-compose, Terraform, Helm) and writes *meaningful* context for them — not a structural dump of `kind:` and `name:`. | "Why is replicas=3? Why does this workflow only run on tags? What does this Helm value control?" — the things the YAML itself can't tell you. |
+| `/contx-draft` | When the pre-commit hook blocks because code was staged without paired context, this command reads the diff and the conversation and proposes entries for each drifted file. User confirms / edits / discards. | The hook stays honest, but unblocking is one slash command, not five `contx append` invocations by hand. |
+| `/contx-show`, `/contx-log`, `/contx-ignore`, `/contx-export` | Read intent (fold), read history, append to `.contxignore`, dump Markdown summary. | Day-to-day reads that used to be CLI commands. Now Claude runs them. |
 
 ### The token-cost shape
 
@@ -96,30 +110,36 @@ Once that exists, you can pipe it into anything: smarter code-review bots, onboa
 git clone <repo>
 cd contx
 ./install.sh --all
-contx init
 ```
 
-That's it. Full step-by-step (Python prereqs, pipx, OS-specific) is in the README.
+That's it. The installer puts the `contx-mcp` and `contx serve` binaries on your PATH, copies the Claude skill + the `contx-*` slash commands to `~/.claude/`, and registers the MCP server in `~/.claude/settings.json`.
 
-Once installed:
-- `contx init` in any repo — interactive setup, installs the pre-commit hook, asks what deployment manifests to track.
-- Open the repo in Claude Code — the skill activates, MCP tools are available, the agent starts pairing every edit with a context entry.
+Once installed, you do the rest from Claude Code:
+
+```
+/contx-init
+```
+
+The slash command walks you through the per-repo questions (hook? enforcement? deploy manifests?), creates `.contx/`, installs the git hook, writes `.contxignore`. Zero Python invocations needed by the user.
+
+Then:
+- Open the repo in Claude Code — the skill activates, MCP tools are available, the agent pairs every `Edit` with a `contx_append`.
+- `/contx-bootstrap` once to generate v0 entries for the existing codebase (this is the one expensive call).
 - `contx serve` to browse the intent map at `localhost:4242`.
 
 ## Honest disclaimer
 
-This is a vibe-coded weekend project. ~75 commits, ~240 tests, end-to-end working — but rough at the edges and **not production-tested**. The transcript miner (used only as a fallback when Claude isn't running) is a sentence-proximity heuristic, not great. The Python AST walker that ships in the package only handles Python. There's no team mode, no rationale conflict resolution, no rationale auto-summarization, no IDE plugin.
+This is a vibe-coded weekend project. ~75 commits, ~240 tests on the underlying primitives, end-to-end working — but rough at the edges and **not production-tested**. There's no team mode, no rationale conflict resolution at merge time, no rationale auto-summarization for long entry logs, no IDE plugin yet, no SaaS dashboard. The slash commands rely on Claude Code being present; if you're not running Claude (or another MCP-capable agent), most of the workflow doesn't exist.
 
-The architecture also has a real open question: today there are two layers doing similar work — slash commands (Claude-driven, smart) and a small Python CLI/MCP layer (deterministic, mechanical). The slash commands are clearly the right place for the intelligence; the CLI is the right place for `serve` and the pre-commit hook. The middle is up for debate — see "next phases" below.
+The architecture deliberately keeps the Python surface tiny — just the MCP server and the web viewer. Everything else is Claude orchestrating with the right slash command. That choice means contx works really well *with* Claude and effectively not at all *without* Claude. That's a feature, not a bug, but worth flagging up front.
 
 ## What's next (rough order)
 
-1. **Collapse the Python layer into slash commands.** Today there's a CLI (`init`, `append`, `show`, `log`, `draft`, …) and an MCP server alongside the slash commands. A lot of that duplicates work the agent could do directly. The plan is to keep only what *has* to be Python (`contx serve` for the web UI, the pre-commit hook as a tiny shell script) and move everything else into slash commands. `/contx-init` would create the dir + hook + config by running shell from inside Claude. Smaller surface, less to install, more honest about where the intelligence lives.
-2. **Team mode** — when two devs append conflicting rationales for the same symbol on different branches, surface the conflict at merge time instead of silently concatenating.
-3. **Rationale summarization** — after 50+ entries on one file, the fold view gets noisy. Have Claude periodically distill the log into a clean summary (with the raw history still preserved for audit).
-4. **Better diagrams** — `/contx-diagram` already delegates to Claude, but the outputs would benefit from a richer template (grouped clusters, deployment swimlanes, color by entry-tag).
-5. **IDE plugins** — VS Code and JetBrains: inline "why is this here?" hover tooltips backed by the sidecar. Closes the loop for devs who aren't in Claude Code all day.
-6. **Other MCP hosts** — Cursor, Windsurf, Codex. The MCP server already speaks the standard protocol; mostly a docs+testing pass.
-7. **Plugin ecosystem** — once collapse (#1) lands, the entry-write API is stable enough for other tools (linters, security scanners, dependency bots) to drop their own context entries.
+1. **Team mode** — when two devs append conflicting rationales for the same symbol on different branches, surface the conflict at merge time instead of silently concatenating. Probably a new `/contx-resolve` slash command + a small MCP tool for listing conflicts.
+2. **Rationale summarization** — after 50+ entries on one file, the fold view gets noisy. A `/contx-summarize` slash command that has Claude distill the log into a clean current-intent summary, with the raw history still preserved for audit.
+3. **Better diagrams** — `/contx-diagram` already delegates to Claude, but the outputs would benefit from a richer prompt template (grouped clusters, deployment swimlanes, color by entry-tag).
+4. **IDE plugins** — VS Code and JetBrains: inline "why is this here?" hover tooltips backed by the sidecar. Closes the loop for the moments you're not in Claude Code.
+5. **Other MCP hosts** — Cursor, Windsurf, Codex. The MCP server already speaks the standard protocol; mostly a docs + per-host slash-command equivalent for the workflows.
+6. **Plugin ecosystem** — the MCP write API is stable enough that other tools (linters, security scanners, dependency bots) could drop their own context entries when they find something worth recording.
 
 If you try it and it breaks or feels wrong, let me know.
