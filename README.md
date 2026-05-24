@@ -250,7 +250,49 @@ your-repo/
 
 Each line of the sidecar is one entry: `{id, kind, symbol, event, rationale, tags, author, timestamp, agent, related}`. Append-only. All files are committed to git so context travels with the code.
 
+## Deployment-manifest awareness
+
+contx tracks deployment manifests (Kubernetes, GitHub Actions, docker-compose) as first-class citizens alongside source files.
+
+### `tracked_paths`
+
+`config.json` has a `tracked_paths` field — a list of `{glob, kind, summarizer}` records:
+
+```json
+{
+  "tracked_paths": [
+    {"glob": "**/*.py", "kind": "source", "summarizer": null},
+    {"glob": "k8s/**/*.yaml", "kind": "deploy", "summarizer": "kubernetes"},
+    {"glob": ".github/workflows/*.yml", "kind": "deploy", "summarizer": "github_actions"},
+    {"glob": "docker-compose*.yml", "kind": "deploy", "summarizer": "docker_compose"}
+  ]
+}
+```
+
+The pre-commit hook and `contx audit` use these globs to detect drift on any tracked path, not just source files.
+
+### Summarizers
+
+Three built-in summarizers produce human-readable rationale entries from manifest YAML:
+
+| Name | Handles |
+|------|---------|
+| `kubernetes` | Deployment, Service, Ingress resources |
+| `github_actions` | Workflow triggers, job count, referenced secrets |
+| `docker_compose` | Service list, images, `depends_on` chains |
+
+### `contx bootstrap-deploy`
+
+Runs every registered summarizer over its matching `tracked_paths` globs and writes the results as `.contx/` sidecar entries:
+
+```bash
+contx bootstrap-deploy
+# bootstrap-deploy wrote 12 summary entries
+```
+
+Run this once when onboarding a repo that already has deployment manifests. The entries are then visible via `contx show`, `contx log`, and the MCP tools.
+
 ## Status
 
-Plans 1–5 plus backlog items B1 (`.contxignore`) and B2 (bootstrap) shipped: storage + CLI, MCP server, pre-commit hook, `contx draft`, Claude Code skill, local web UI, per-repo ignore file, and brownfield bootstrap from AST + git history. Remaining backlog items: B3 (deployment awareness), B4 (diagrams), tuple-vs-list immutability on `Entry.tags`/`related`, SessionStart skill auto-load, `__main__.py` test coverage. See `docs/plans/` and `docs/BACKLOG.md`.
+Plans 1–5 plus backlog items B1 (`.contxignore`), B2 (bootstrap), and B3 (deployment awareness) shipped: storage + CLI, MCP server, pre-commit hook, `contx draft`, Claude Code skill, local web UI, per-repo ignore file, brownfield bootstrap from AST + git history, and deployment-manifest summarizers. Remaining backlog items: B4 (diagrams), tuple-vs-list immutability on `Entry.tags`/`related`, SessionStart skill auto-load, `__main__.py` test coverage. See `docs/plans/` and `docs/BACKLOG.md`.
 
