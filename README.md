@@ -208,7 +208,16 @@ Affects: drift detection (pre-commit hook), `contx_audit`, and any future toolin
 
 ## Slash commands (Claude Code)
 
-<!-- TODO: fill in once slash commands are authored -->
+`contx install-skill` also installs four slash commands at `~/.claude/commands/`. Each delegates to Claude — Claude reads the actual code and writes meaningful entries via the MCP tools.
+
+| Command | What it does |
+|---|---|
+| `/contx-bootstrap [glob]` | Walk the repo, decide which files/symbols warrant a v0 entry, and write meaningful rationales. Skips boilerplate. Marks files Claude couldn't infer with `pending-rationale`. |
+| `/contx-explain <ref>` | Improve or create the entry for `<file>` or `<file>::symbol`. Lifts the rationale from "what" to "why" — incident-anchored when possible. Asks you for business context when it can't infer. |
+| `/contx-diagram <type>` | Read the code, reason about architecture, generate a `.drawio` file directly. Types: `architecture`, `components`, `dataflow`, `deploy`. |
+| `/contx-deploy-summary` | Read all deployment manifests (k8s, GH Actions, docker-compose, terraform, helm) and write meaningful summaries — what each thing actually deploys, what it connects to, which secrets it consumes. |
+
+These replace the older mechanical `contx bootstrap`, `contx bootstrap-deploy`, and `contx diagram` CLI commands, which generated structurally-correct but semantically-empty output.
 
 ## Storage layout
 

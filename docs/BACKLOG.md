@@ -11,9 +11,7 @@ Items deferred from spec/plans, with current status.
 - Plan 4 — Claude Code skill + installer.
 - Plan 5 — Local read-only web UI.
 - B1 — `.contxignore` file with config merge.
-- B2 — Bootstrap from git history + Python AST.
-- B3 — Deployment-manifest awareness (k8s, GitHub Actions, docker-compose) + `tracked_paths` schema + `contx bootstrap-deploy`.
-- B4 — File-level diagrams as draw.io XML.
+- B2/B3/B4 (Claude-driven) — `/contx-bootstrap`, `/contx-explain`, `/contx-diagram`, `/contx-deploy-summary` slash commands. (Replaced earlier mechanical Python implementations.)
 - Hardening pass (stderr errors, ValueError catches, defensive read_entries).
 - Port auto-fallback in `contx serve` (with `--strict-port` opt-out).
 - `__main__.py` coverage.
