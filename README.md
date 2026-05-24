@@ -40,7 +40,9 @@ contx log src/foo.py
 | `contx install-hook` / `contx uninstall-hook` | Install or remove the pre-commit hook (`contx init` installs it by default; use `init --no-hook` to skip). |
 | `contx install-skill` / `contx uninstall-skill` | Install or remove the Claude Code skill at `~/.claude/skills/contx/`. |
 | `contx bootstrap [--ast] [--git] [--since REF] [--dry-run] [--force]` | Seed entries from git history + AST on an already-initialized repo. |
-| `contx serve [--port 4242] [--host 127.0.0.1]` | Launch the read-only local web UI. |
+| `contx serve [--port 4242] [--host 127.0.0.1] [--strict-port]` | Launch the read-only local web UI. |
+| `contx ignore <pattern>` | Append a gitignore-style pattern to `.contxignore` (deduplicates). |
+| `contx export --format markdown [--out PATH]` | Write a human-readable Markdown summary of the repo's intent map. |
 | `contx version` | Print version. |
 
 `<ref>` is either `path/to/file.py` (file-level) or `path/to/file.py::Class.method` (symbol-level).
@@ -177,6 +179,8 @@ For a head start: `contx draft --from-transcript` heuristically mines the most r
 contx serve              # localhost:4242
 contx serve --port 8080  # any port
 ```
+
+If the port is already in use, contx tries the next 9 ports automatically. Pass `--strict-port` to fail instead.
 
 Opens a read-only web viewer. Routes:
 
