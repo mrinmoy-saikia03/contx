@@ -340,126 +340,9 @@ def test_init_preserves_existing_contxignore(tmp_repo: Path, monkeypatch: pytest
     assert "user/**" in content  # untouched
 
 
-def test_init_with_bootstrap_default_runs_ast(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.chdir(tmp_repo)
-    (tmp_repo / "src").mkdir()
-    (tmp_repo / "src" / "a.py").write_text('"""mod"""\ndef hi():\n    """h"""\n    pass\n')
-    result = runner.invoke(app, ["init"])
-    assert result.exit_code == 0
-    sidecar = tmp_repo / ".contx" / "src" / "a.py.jsonl"
-    assert sidecar.is_file()
-    assert "mod" in sidecar.read_text()
-
-
-def test_init_no_bootstrap_skips_bootstrap(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.chdir(tmp_repo)
-    (tmp_repo / "src").mkdir()
-    (tmp_repo / "src" / "a.py").write_text('"""mod"""\ndef hi(): pass\n')
-    result = runner.invoke(app, ["init", "--no-bootstrap"])
-    assert result.exit_code == 0
-    sidecar = tmp_repo / ".contx" / "src" / "a.py.jsonl"
-    assert not sidecar.exists()
-
-
-def test_bootstrap_command_on_already_initialized_repo(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.chdir(tmp_repo)
-    runner.invoke(app, ["init", "--no-bootstrap"])
-    (tmp_repo / "src").mkdir()
-    (tmp_repo / "src" / "a.py").write_text('"""mod"""\ndef hi(): pass\n')
-    result = runner.invoke(app, ["bootstrap"])
-    assert result.exit_code == 0, result.output
-    sidecar = tmp_repo / ".contx" / "src" / "a.py.jsonl"
-    assert sidecar.is_file()
-
-
-def test_bootstrap_refuses_second_run_without_force(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.chdir(tmp_repo)
-    runner.invoke(app, ["init"])
-    (tmp_repo / "src").mkdir()
-    (tmp_repo / "src" / "a.py").write_text('def hi(): pass\n')
-    runner.invoke(app, ["bootstrap"])
-    result = runner.invoke(app, ["bootstrap"])
-    assert result.exit_code != 0
-    assert "already bootstrapped" in result.output.lower()
-
-
-def test_bootstrap_force_succeeds(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.chdir(tmp_repo)
-    runner.invoke(app, ["init"])
-    (tmp_repo / "src").mkdir()
-    (tmp_repo / "src" / "a.py").write_text('def hi(): pass\n')
-    runner.invoke(app, ["bootstrap"])
-    result = runner.invoke(app, ["bootstrap", "--force"])
-    assert result.exit_code == 0, result.output
-
-
-def test_bootstrap_dry_run_writes_nothing(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.chdir(tmp_repo)
-    runner.invoke(app, ["init", "--no-bootstrap"])
-    (tmp_repo / "src").mkdir()
-    (tmp_repo / "src" / "a.py").write_text('def hi(): pass\n')
-    result = runner.invoke(app, ["bootstrap", "--dry-run"])
-    assert result.exit_code == 0
-    sidecar = tmp_repo / ".contx" / "src" / "a.py.jsonl"
-    assert not sidecar.exists()
-
-
-def test_diagram_files_writes_drawio(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
-    from datetime import datetime, timezone
-    from contx.entry import Entry
-    from contx.store import append_entry
-
-    monkeypatch.chdir(tmp_repo)
-    runner.invoke(app, ["init", "--no-bootstrap"])
-    entry = Entry(
-        id="01HXYZ0000000000000000000K",
-        kind="file", symbol=None, event="created", rationale="auth module",
-        tags=[], author="t@x",
-        timestamp=datetime(2026, 5, 21, tzinfo=timezone.utc),
-        agent="human-cli", related=[],
-    )
-    append_entry(tmp_repo, "src/auth.py", entry)
-    result = runner.invoke(app, ["diagram"])
-    assert result.exit_code == 0, result.output
-    out_path = tmp_repo / ".contx" / "diagrams" / "files.drawio"
-    assert out_path.is_file()
-    content = out_path.read_text()
-    assert "<mxfile" in content
-    assert "src/auth.py" in content
-
-
-def test_diagram_with_custom_out(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-    from datetime import datetime, timezone
-    from contx.entry import Entry
-    from contx.store import append_entry
-
-    monkeypatch.chdir(tmp_repo)
-    runner.invoke(app, ["init", "--no-bootstrap"])
-    entry = Entry(
-        id="01HXYZ0000000000000000000K",
-        kind="file", symbol=None, event="created", rationale="x",
-        tags=[], author="t@x",
-        timestamp=datetime(2026, 5, 21, tzinfo=timezone.utc),
-        agent="human-cli", related=[],
-    )
-    append_entry(tmp_repo, "src/a.py", entry)
-    out = tmp_path / "custom.drawio"
-    result = runner.invoke(app, ["diagram", "--out", str(out)])
-    assert result.exit_code == 0
-    assert out.is_file()
-
-
-def test_diagram_unsupported_type_errors(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.chdir(tmp_repo)
-    runner.invoke(app, ["init", "--no-bootstrap"])
-    result = runner.invoke(app, ["diagram", "--type", "symbols"])
-    assert result.exit_code != 0
-    assert "not implemented" in result.output.lower() or "not yet" in result.output.lower()
-
-
 def test_ignore_appends_pattern(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.chdir(tmp_repo)
-    runner.invoke(app, ["init", "--no-bootstrap"])
+    runner.invoke(app, ["init"])
     result = runner.invoke(app, ["ignore", "vendor/**"])
     assert result.exit_code == 0
     content = (tmp_repo / ".contxignore").read_text()
@@ -468,7 +351,7 @@ def test_ignore_appends_pattern(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch)
 
 def test_ignore_does_not_duplicate(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.chdir(tmp_repo)
-    runner.invoke(app, ["init", "--no-bootstrap"])
+    runner.invoke(app, ["init"])
     runner.invoke(app, ["ignore", "vendor/**"])
     runner.invoke(app, ["ignore", "vendor/**"])
     content = (tmp_repo / ".contxignore").read_text()
@@ -477,7 +360,7 @@ def test_ignore_does_not_duplicate(tmp_repo: Path, monkeypatch: pytest.MonkeyPat
 
 def test_ignore_creates_contxignore_if_missing(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.chdir(tmp_repo)
-    runner.invoke(app, ["init", "--no-bootstrap"])
+    runner.invoke(app, ["init"])
     (tmp_repo / ".contxignore").unlink()
     result = runner.invoke(app, ["ignore", "tmp/**"])
     assert result.exit_code == 0
@@ -491,7 +374,7 @@ def test_export_markdown_writes_file(tmp_repo: Path, monkeypatch: pytest.MonkeyP
     from contx.store import append_entry
 
     monkeypatch.chdir(tmp_repo)
-    runner.invoke(app, ["init", "--no-bootstrap"])
+    runner.invoke(app, ["init"])
     append_entry(tmp_repo, "src/auth.py", Entry(
         id="01HXYZ0000000000000000000K",
         kind="file", symbol=None, event="created",
@@ -520,7 +403,7 @@ def test_export_markdown_writes_file(tmp_repo: Path, monkeypatch: pytest.MonkeyP
 
 def test_export_default_path_under_contx(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.chdir(tmp_repo)
-    runner.invoke(app, ["init", "--no-bootstrap"])
+    runner.invoke(app, ["init"])
     result = runner.invoke(app, ["export", "--format", "markdown"])
     assert result.exit_code == 0
     default = tmp_repo / ".contx" / "INTENT.md"
@@ -529,29 +412,9 @@ def test_export_default_path_under_contx(tmp_repo: Path, monkeypatch: pytest.Mon
 
 def test_export_unsupported_format_errors(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.chdir(tmp_repo)
-    runner.invoke(app, ["init", "--no-bootstrap"])
+    runner.invoke(app, ["init"])
     result = runner.invoke(app, ["export", "--format", "pdf"])
     assert result.exit_code != 0
     assert "format" in result.output.lower()
 
 
-def test_bootstrap_deploy_writes_summaries(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
-    import json
-    monkeypatch.chdir(tmp_repo)
-    runner.invoke(app, ["init", "--no-bootstrap"])
-    # Add a k8s tracked-path
-    cfg_path = tmp_repo / ".contx" / "config.json"
-    raw = json.loads(cfg_path.read_text())
-    raw["tracked_paths"].append({"glob": "k8s/**/*.yaml", "kind": "deploy", "summarizer": "kubernetes"})
-    cfg_path.write_text(json.dumps(raw))
-    (tmp_repo / "k8s").mkdir()
-    (tmp_repo / "k8s" / "auth.yaml").write_text(
-        "apiVersion: apps/v1\nkind: Deployment\nmetadata: {name: auth, namespace: prod}\nspec: {replicas: 2}\n"
-    )
-    result = runner.invoke(app, ["bootstrap-deploy"])
-    assert result.exit_code == 0, result.output
-    sidecar = tmp_repo / ".contx" / "k8s" / "auth.yaml.jsonl"
-    assert sidecar.is_file()
-    content = sidecar.read_text()
-    assert "Deployment" in content
-    assert "auto-summary" in content

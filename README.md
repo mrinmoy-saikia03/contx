@@ -39,7 +39,6 @@ contx log src/foo.py
 | `contx draft [--from-transcript]` | Interactive editor for drifted files; appends entries and re-stages `.contx/`. |
 | `contx install-hook` / `contx uninstall-hook` | Install or remove the pre-commit hook (`contx init` installs it by default; use `init --no-hook` to skip). |
 | `contx install-skill` / `contx uninstall-skill` | Install or remove the Claude Code skill at `~/.claude/skills/contx/`. |
-| `contx bootstrap [--ast] [--git] [--since REF] [--dry-run] [--force]` | Seed entries from git history + AST on an already-initialized repo. |
 | `contx serve [--port 4242] [--host 127.0.0.1] [--strict-port]` | Launch the read-only local web UI. |
 | `contx ignore <pattern>` | Append a gitignore-style pattern to `.contxignore` (deduplicates). |
 | `contx export --format markdown [--out PATH]` | Write a human-readable Markdown summary of the repo's intent map. |
@@ -207,38 +206,9 @@ Supported syntax (subset of gitignore):
 
 Affects: drift detection (pre-commit hook), `contx_audit`, and any future tooling that walks the source tree.
 
-## Bootstrapping a brownfield repo
+## Slash commands (Claude Code)
 
-On an existing repo, `contx init` automatically runs a bootstrap pass after initialization (pass `--no-bootstrap` to skip). The bootstrap walks the source tree with `ast` and emits one baseline entry per file/symbol, using docstrings where available.
-
-```bash
-contx init                  # init + AST bootstrap (default)
-contx init --no-bootstrap   # init only, no entries written
-contx init --bootstrap-ast  # AST only (skip git history)
-contx init --bootstrap-git  # git history only (skip AST)
-```
-
-On an already-initialized repo, use the standalone `contx bootstrap` command:
-
-```bash
-contx bootstrap             # AST + git history (default)
-contx bootstrap --ast       # AST only
-contx bootstrap --git       # git history only
-contx bootstrap --since v1.0.0   # only commits after a ref
-contx bootstrap --dry-run   # print counts without writing
-contx bootstrap --force     # re-run even if already bootstrapped
-```
-
-### What gets written
-
-- **AST pass:** one `file`-kind entry per Python file (rationale = module docstring), plus one `symbol`-kind entry per top-level function/class/method (rationale = docstring). Tagged `bootstrap`.
-- **Git history pass:** one `file`-kind entry per non-noisy commit × file touched. First occurrence is `created`, subsequent are `modified`. Tagged `bootstrap` + `git-history`. Noisy commits (WIP, typo, lint, merge, bump, chore(deps), tiny diffs) are skipped automatically.
-
-All bootstrap entries carry `agent="audit"` so they're distinguishable from human-written or agent-written context.
-
-### Idempotence
-
-Running bootstrap twice without `--force` raises an error: `repo already bootstrapped`. With `--force`, a supersede marker entry is appended to each already-bootstrapped sidecar before the new entries are written.
+<!-- TODO: fill in once slash commands are authored -->
 
 ## Storage layout
 
@@ -266,55 +236,16 @@ contx tracks deployment manifests (Kubernetes, GitHub Actions, docker-compose) a
 {
   "tracked_paths": [
     {"glob": "**/*.py", "kind": "source", "summarizer": null},
-    {"glob": "k8s/**/*.yaml", "kind": "deploy", "summarizer": "kubernetes"},
-    {"glob": ".github/workflows/*.yml", "kind": "deploy", "summarizer": "github_actions"},
-    {"glob": "docker-compose*.yml", "kind": "deploy", "summarizer": "docker_compose"}
+    {"glob": "k8s/**/*.yaml", "kind": "deploy", "summarizer": null},
+    {"glob": ".github/workflows/*.yml", "kind": "deploy", "summarizer": null},
+    {"glob": "docker-compose*.yml", "kind": "deploy", "summarizer": null}
   ]
 }
 ```
 
-The pre-commit hook and `contx audit` use these globs to detect drift on any tracked path, not just source files.
-
-### Summarizers
-
-Three built-in summarizers produce human-readable rationale entries from manifest YAML:
-
-| Name | Handles |
-|------|---------|
-| `kubernetes` | Deployment, Service, Ingress resources |
-| `github_actions` | Workflow triggers, job count, referenced secrets |
-| `docker_compose` | Service list, images, `depends_on` chains |
-
-### `contx bootstrap-deploy`
-
-Runs every registered summarizer over its matching `tracked_paths` globs and writes the results as `.contx/` sidecar entries:
-
-```bash
-contx bootstrap-deploy
-# bootstrap-deploy wrote 12 summary entries
-```
-
-Run this once when onboarding a repo that already has deployment manifests. The entries are then visible via `contx show`, `contx log`, and the MCP tools.
-
-## Diagrams
-
-`contx diagram` renders the repo's intent graph as a [draw.io](https://app.diagrams.net) XML file:
-
-```bash
-contx diagram                    # writes .contx/diagrams/files.drawio
-contx diagram --out my.drawio    # custom output path
-```
-
-The output file (`.contx/diagrams/files.drawio`) can be opened with:
-
-- **[app.diagrams.net](https://app.diagrams.net)** — paste/import the file in the browser
-- **VS Code** — [Draw.io Integration](https://marketplace.visualstudio.com/items?itemName=hediet.vscode-drawio) extension
-
-Each source file becomes a node, coloured by top-level directory. Tooltip shows the file intent. Edges come from `related` backlinks in entries. Layout is Fruchterman-Reingold force-directed (pure Python, no deps).
-
-`--type symbols` and `--type deploy` are reserved for future work; only `files` is implemented in this MVP.
+The pre-commit hook and `contx audit` use these globs to detect drift on any tracked path, not just source files. Use the `/contx-deploy-summary` slash command to write meaningful context entries for deployment manifests.
 
 ## Status
 
-Plans 1–5 plus backlog items B1 (`.contxignore`), B2 (bootstrap), B3 (deployment awareness), and B4 (diagrams) shipped: storage + CLI, MCP server, pre-commit hook, `contx draft`, Claude Code skill, local web UI, per-repo ignore file, brownfield bootstrap from AST + git history, deployment-manifest summarizers, and draw.io diagram export. Remaining backlog items: tuple-vs-list immutability on `Entry.tags`/`related`, SessionStart skill auto-load, `__main__.py` test coverage. See `docs/plans/` and `docs/BACKLOG.md`.
+Plans 1–5 plus backlog items B1–B4 shipped: storage + CLI, MCP server, pre-commit hook, `contx draft`, Claude Code skill, local web UI, per-repo ignore file. Slash commands (`/contx-bootstrap`, `/contx-explain`, `/contx-diagram`, `/contx-deploy-summary`) replace the former mechanical Python bootstrap/summarizers/diagram modules. Remaining backlog items: tuple-vs-list immutability on `Entry.tags`/`related`, SessionStart skill auto-load. See `docs/plans/` and `docs/BACKLOG.md`.
 

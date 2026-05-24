@@ -68,9 +68,6 @@ def version() -> None:
 @app.command()
 def init(
     no_hook: bool = typer.Option(False, "--no-hook", help="Skip installing the pre-commit hook"),
-    no_bootstrap: bool = typer.Option(False, "--no-bootstrap", help="Skip bootstrap pass after init"),
-    bootstrap_ast: bool = typer.Option(False, "--bootstrap-ast", help="Bootstrap from AST only (skip git history)"),
-    bootstrap_git: bool = typer.Option(False, "--bootstrap-git", help="Bootstrap from git history only (skip AST)"),
 ) -> None:
     """Initialize contx for the current git repo."""
     repo = _resolve_repo()
@@ -87,48 +84,6 @@ def init(
 
     if _write_default_contxignore(repo):
         typer.echo(f"created .contxignore at {repo / '.contxignore'}")
-
-    if not no_bootstrap and fresh:
-        do_ast = not bootstrap_git
-        do_git = not bootstrap_ast
-        try:
-            written = bootstrap_repo(repo, do_ast=do_ast, do_git=do_git)
-            typer.echo(f"bootstrap wrote {written} entries (tag=bootstrap, agent=audit)")
-        except RuntimeError as exc:
-            typer.echo(f"bootstrap skipped: {exc}")
-
-
-@app.command()
-def bootstrap(
-    ast: bool = typer.Option(False, "--ast", help="AST only (skip git history)"),
-    git: bool = typer.Option(False, "--git", help="Git history only (skip AST)"),
-    force: bool = typer.Option(False, "--force", help="Re-run even if already bootstrapped"),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Print counts without writing"),
-    since: str | None = typer.Option(None, "--since", help="Git ref to start history walk from"),
-) -> None:
-    """Seed entries from git history + AST. Run on already-initialized repos."""
-    repo = _resolve_repo()
-    if not is_initialized(repo):
-        typer.echo("error: contx not initialized. Run `contx init --no-bootstrap` first.", err=True)
-        raise typer.Exit(code=2)
-    do_ast = not git
-    do_git = not ast
-    try:
-        written = bootstrap_repo(
-            repo,
-            do_ast=do_ast,
-            do_git=do_git,
-            force=force,
-            dry_run=dry_run,
-            since=since,
-        )
-    except RuntimeError as exc:
-        typer.echo(f"error: {exc}", err=True)
-        raise typer.Exit(code=2)
-    if dry_run:
-        typer.echo(f"dry-run: would write {written} entries")
-    else:
-        typer.echo(f"bootstrap wrote {written} entries (tag=bootstrap, agent=audit)")
 
 
 @app.command(name="install-hook")
@@ -327,7 +282,6 @@ def log_cmd(ref: str = typer.Argument(..., help="file path, or file::symbol")) -
         typer.echo("")
 
 
-from contx.bootstrap import bootstrap_repo
 from contx.staging import compute_drift
 
 
@@ -516,99 +470,3 @@ def _precommit_check() -> None:
         return
 
 
-@app.command(name="bootstrap-deploy")
-def bootstrap_deploy() -> None:
-    """Run all registered summarizers over their matching tracked_paths."""
-    from datetime import datetime, timezone
-    from ulid import ULID
-    from contx.config import load_config
-    from contx.entry import Entry
-    from contx.ignore import matches_any_pattern
-    from contx.paths import CTX_DIR
-    from contx.store import append_entry
-    from contx.summarizers.registry import get_summarizer
-
-    repo = _resolve_repo()
-    if not is_initialized(repo):
-        typer.echo("error: contx not initialized. Run `contx init --no-bootstrap` first.", err=True)
-        raise typer.Exit(code=2)
-
-    cfg = load_config(repo)
-    written = 0
-    now = datetime.now(timezone.utc)
-
-    for tp in cfg.tracked_paths:
-        if tp.get("kind") != "deploy":
-            continue
-        sname = tp.get("summarizer")
-        if not sname:
-            continue
-        summarizer = get_summarizer(sname)
-        if summarizer is None:
-            typer.echo(f"warning: summarizer '{sname}' not found, skipping {tp['glob']}", err=True)
-            continue
-        glob = tp["glob"]
-        for path in sorted(repo.rglob("*")):
-            if not path.is_file():
-                continue
-            rel = str(path.relative_to(repo))
-            if rel.startswith(".git/") or rel.startswith(f"{CTX_DIR}/"):
-                continue
-            if not matches_any_pattern(rel, [glob]):
-                continue
-            try:
-                text = path.read_text()
-            except (OSError, UnicodeDecodeError):
-                continue
-            summaries = summarizer(text, rel)
-            for s in summaries:
-                entry = Entry(
-                    id=str(ULID()),
-                    kind="file" if s.symbol is None else "symbol",
-                    symbol=s.symbol,
-                    event="created",
-                    rationale=s.rationale,
-                    tags=list(s.tags),
-                    author="contx-bootstrap",
-                    timestamp=now,
-                    agent="audit",
-                    related=[],
-                )
-                append_entry(repo, rel, entry)
-                written += 1
-
-    typer.echo(f"bootstrap-deploy wrote {written} summary entries")
-
-
-@app.command()
-def diagram(
-    type_: str = typer.Option("files", "--type", help="files | symbols | deploy"),
-    out: Path | None = typer.Option(None, "--out", help="Output path (defaults to .contx/diagrams/<type>.drawio)"),
-) -> None:
-    """Render the intent graph as a draw.io XML file."""
-    from contx.diagram.drawio import emit_drawio
-    from contx.diagram.graph import build_file_graph
-    from contx.diagram.layout import compute_positions
-
-    repo = _resolve_repo()
-    if not is_initialized(repo):
-        typer.echo("error: contx not initialized. Run `contx init` first.", err=True)
-        raise typer.Exit(code=2)
-
-    if type_ == "files":
-        graph = build_file_graph(repo)
-    elif type_ in ("symbols", "deploy"):
-        typer.echo(f"error: --type {type_} not yet implemented (only 'files' is available in MVP)", err=True)
-        raise typer.Exit(code=2)
-    else:
-        typer.echo(f"error: unknown --type {type_!r}; expected files|symbols|deploy", err=True)
-        raise typer.Exit(code=2)
-
-    positions = compute_positions(graph)
-    xml = emit_drawio(graph, positions=positions)
-
-    if out is None:
-        out = repo / ".contx" / "diagrams" / f"{type_}.drawio"
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(xml)
-    typer.echo(f"wrote {out} ({len(graph.nodes)} nodes, {len(graph.edges)} edges)")

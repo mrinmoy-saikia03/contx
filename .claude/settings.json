@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rtk ls *)",
+      "Bash(git *)",
+      "Bash(cd *)",
+      "Bash(source *)",
+      "Bash(pip *)",
+      "Bash(pytest *)",
+      "Bash(find *)",
+      "Bash(grep *)",
+      "Bash(cat *)",
+      "Bash(mkdir *)",
+      "Bash(touch *)"
+    ]
+  }
+}

@@ -1,0 +1,10 @@
+# contx — paths to skip when tracking context.
+# Same syntax as .gitignore (subset).
+
+**/node_modules/**
+**/__tests__/**
+**/.venv/**
+**/venv/**
+**/dist/**
+**/build/**
+**/.contx/**

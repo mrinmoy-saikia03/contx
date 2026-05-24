@@ -1,0 +1,2 @@
+{"id":"01KSCDCMXQDFZY5MZ6342C1XRE","kind":"file","symbol":null,"event":"created","rationale":"contx — git for context.","tags":["bootstrap"],"author":"contx-bootstrap","timestamp":"2026-05-24T07:15:01.687482+00:00","agent":"audit","related":[]}
+{"id":"01KS4ZHFKR1HW3QMW04M2MW44D","kind":"file","symbol":null,"event":"created","rationale":"chore: scaffold contx package\n\nCo-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>","tags":["bootstrap","git-history"],"author":"mrinmoy.saikia@xeno.in","timestamp":"2026-05-21T15:28:19+05:30","agent":"audit","related":[]}

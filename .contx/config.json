@@ -1,0 +1,28 @@
+{
+  "granularity": "both",
+  "languages": [
+    "py",
+    "ts",
+    "tsx",
+    "js",
+    "jsx",
+    "go",
+    "java",
+    "kt",
+    "rs",
+    "rb",
+    "php",
+    "swift"
+  ],
+  "ignore": [
+    "**/node_modules/**",
+    "**/__tests__/**",
+    "**/.venv/**",
+    "**/venv/**",
+    "**/dist/**",
+    "**/build/**"
+  ],
+  "require_rationale_on_create": true,
+  "extract_rationale_on_modify": true,
+  "require_context_on_commit": true
+}

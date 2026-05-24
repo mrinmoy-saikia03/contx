@@ -1,0 +1,1 @@
+{"id":"01KS7V2RXGKNS6GHYDA4N6PBXV","kind":"file","symbol":null,"event":"created","rationale":"feat(web): scaffold read-only web UI (FastAPI + Jinja2)\n\nAdd contx/web/ package with create_app() factory, all 5 routes","tags":["bootstrap","git-history"],"author":"mrinmoy.saikia@xeno.in","timestamp":"2026-05-22T18:08:06+05:30","agent":"audit","related":[]}
