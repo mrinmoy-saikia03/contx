@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,7 +12,7 @@ from pathlib import Path
 import typer
 
 from contx import __version__
-from contx.config import default_config, save_config
+from contx.config import Config, default_config, save_config
 from contx.drafting import build_template, parse_template
 from contx.entry import Entry
 from contx.paths import parse_symbol_ref
@@ -51,6 +52,11 @@ def _write_default_contxignore(repo: Path) -> bool:
     return True
 
 
+def _is_tty() -> bool:
+    """Return True when stdin is an interactive terminal. Isolated for testability."""
+    return sys.stdin.isatty()
+
+
 def _resolve_repo() -> Path:
     try:
         return find_repo_root(Path.cwd())
@@ -68,22 +74,124 @@ def version() -> None:
 @app.command()
 def init(
     no_hook: bool = typer.Option(False, "--no-hook", help="Skip installing the pre-commit hook"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Accept defaults; skip all prompts"),
 ) -> None:
-    """Initialize contx for the current git repo."""
+    """Initialize contx for the current git repo (interactive when stdin is a TTY)."""
     repo = _resolve_repo()
     fresh = not is_initialized(repo)
     if not fresh:
         typer.echo(f"contx already initialized at {repo / '.contx'}")
-    else:
-        save_config(repo, default_config())
-        typer.echo(f"initialized contx at {repo / '.contx'}")
+        # On re-run, just top up the hook + .contxignore if missing, no prompts.
+        if not no_hook and not is_pre_commit_hook_installed(repo):
+            install_pre_commit_hook(repo)
+            typer.echo(f"installed pre-commit hook at {repo / '.git' / 'hooks' / 'pre-commit'}")
+        if _write_default_contxignore(repo):
+            typer.echo(f"created .contxignore at {repo / '.contxignore'}")
+        return
 
-    if not no_hook and not is_pre_commit_hook_installed(repo):
+    interactive = (not yes) and _is_tty()
+
+    # Default answers
+    want_hook = not no_hook
+    enforce_block = True
+    granularity = "both"
+    track_k8s = False
+    track_gha = False
+    track_compose = False
+
+    if interactive:
+        typer.echo("contx init — interactive setup (press Enter to accept defaults; pass -y to skip).")
+        typer.echo("")
+
+        if not no_hook:
+            want_hook = typer.confirm("Install pre-commit hook (blocks commits without paired context)?", default=True)
+
+        if want_hook:
+            mode = typer.prompt(
+                "Drift enforcement: [block]/warn",
+                default="block",
+                show_default=False,
+            ).strip().lower()
+            enforce_block = mode not in ("warn", "w", "warn-only", "warn_only")
+
+        gran = typer.prompt(
+            "Granularity: [both]/file/symbol",
+            default="both",
+            show_default=False,
+        ).strip().lower()
+        if gran in ("file", "f"):
+            granularity = "file"
+        elif gran in ("symbol", "s"):
+            granularity = "symbol"
+        else:
+            granularity = "both"
+
+        typer.echo("Track deployment manifests? Pick any (comma/space-separated), or Enter for none:")
+        typer.echo("  k  Kubernetes (k8s/**/*.yaml)")
+        typer.echo("  g  GitHub Actions (.github/workflows/*.yml)")
+        typer.echo("  d  docker-compose (docker-compose*.yml)")
+        picks = typer.prompt("Selection", default="", show_default=False).strip().lower()
+        for token in picks.replace(",", " ").split():
+            if token in ("k", "k8s", "kubernetes"):
+                track_k8s = True
+            elif token in ("g", "gha", "github", "github-actions", "github_actions"):
+                track_gha = True
+            elif token in ("d", "compose", "docker", "docker-compose", "docker_compose"):
+                track_compose = True
+
+    # Build config
+    cfg = default_config()
+    extra_tracked: list[dict] = []
+    if track_k8s:
+        extra_tracked.extend([
+            {"glob": "k8s/**/*.yaml", "kind": "deploy", "summarizer": "kubernetes"},
+            {"glob": "k8s/**/*.yml", "kind": "deploy", "summarizer": "kubernetes"},
+        ])
+    if track_gha:
+        extra_tracked.extend([
+            {"glob": ".github/workflows/*.yml", "kind": "deploy", "summarizer": "github_actions"},
+            {"glob": ".github/workflows/*.yaml", "kind": "deploy", "summarizer": "github_actions"},
+        ])
+    if track_compose:
+        extra_tracked.extend([
+            {"glob": "docker-compose.yml", "kind": "deploy", "summarizer": "docker_compose"},
+            {"glob": "docker-compose.yaml", "kind": "deploy", "summarizer": "docker_compose"},
+            {"glob": "docker-compose.*.yml", "kind": "deploy", "summarizer": "docker_compose"},
+        ])
+    cfg = Config(
+        granularity=granularity,  # type: ignore[arg-type]
+        languages=list(cfg.languages),
+        ignore=list(cfg.ignore),
+        require_rationale_on_create=cfg.require_rationale_on_create,
+        extract_rationale_on_modify=cfg.extract_rationale_on_modify,
+        require_context_on_commit=enforce_block,
+        tracked_paths=list(cfg.tracked_paths) + extra_tracked,
+    )
+    save_config(repo, cfg)
+    typer.echo(f"initialized contx at {repo / '.contx'}")
+
+    if want_hook and not is_pre_commit_hook_installed(repo):
         install_pre_commit_hook(repo)
         typer.echo(f"installed pre-commit hook at {repo / '.git' / 'hooks' / 'pre-commit'}")
 
     if _write_default_contxignore(repo):
         typer.echo(f"created .contxignore at {repo / '.contxignore'}")
+
+    typer.echo("")
+    typer.echo("Settings:")
+    typer.echo(f"  hook:        {'installed (' + ('block' if enforce_block else 'warn') + ')' if want_hook else 'skipped'}")
+    typer.echo(f"  granularity: {granularity}")
+    if extra_tracked:
+        kinds = []
+        if track_k8s:
+            kinds.append("kubernetes")
+        if track_gha:
+            kinds.append("github-actions")
+        if track_compose:
+            kinds.append("docker-compose")
+        typer.echo(f"  deploy:      {', '.join(kinds)}")
+    else:
+        typer.echo(f"  deploy:      none")
 
 
 @app.command(name="install-hook")

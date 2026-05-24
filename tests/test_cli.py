@@ -418,3 +418,91 @@ def test_export_unsupported_format_errors(tmp_repo: Path, monkeypatch: pytest.Mo
     assert "format" in result.output.lower()
 
 
+def test_init_interactive_defaults(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    """When run interactively with all-default Enter presses, config matches defaults."""
+    monkeypatch.chdir(tmp_repo)
+    # Simulate a TTY
+    monkeypatch.setattr("contx.cli._is_tty", lambda: True)
+    # Four Enter presses: hook=Y (default), enforcement=block, granularity=both, deploys=none
+    result = runner.invoke(app, ["init"], input="\n\n\n\n")
+    assert result.exit_code == 0, result.output
+    import json
+    cfg = json.loads((tmp_repo / ".contx" / "config.json").read_text())
+    assert cfg["granularity"] == "both"
+    assert cfg["require_context_on_commit"] is True
+
+
+def test_init_interactive_warn_only(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.chdir(tmp_repo)
+    monkeypatch.setattr("contx.cli._is_tty", lambda: True)
+    # hook=Y, enforcement=warn, granularity=default, deploys=none
+    result = runner.invoke(app, ["init"], input="\nwarn\n\n\n")
+    assert result.exit_code == 0, result.output
+    import json
+    cfg = json.loads((tmp_repo / ".contx" / "config.json").read_text())
+    assert cfg["require_context_on_commit"] is False
+
+
+def test_init_interactive_file_granularity(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.chdir(tmp_repo)
+    monkeypatch.setattr("contx.cli._is_tty", lambda: True)
+    result = runner.invoke(app, ["init"], input="\n\nfile\n\n")
+    assert result.exit_code == 0, result.output
+    import json
+    cfg = json.loads((tmp_repo / ".contx" / "config.json").read_text())
+    assert cfg["granularity"] == "file"
+
+
+def test_init_interactive_deploys_kubernetes(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.chdir(tmp_repo)
+    monkeypatch.setattr("contx.cli._is_tty", lambda: True)
+    result = runner.invoke(app, ["init"], input="\n\n\nk\n")
+    assert result.exit_code == 0, result.output
+    import json
+    cfg = json.loads((tmp_repo / ".contx" / "config.json").read_text())
+    summarizers = {tp.get("summarizer") for tp in cfg["tracked_paths"]}
+    assert "kubernetes" in summarizers
+
+
+def test_init_interactive_deploys_multi(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.chdir(tmp_repo)
+    monkeypatch.setattr("contx.cli._is_tty", lambda: True)
+    result = runner.invoke(app, ["init"], input="\n\n\nk g d\n")
+    assert result.exit_code == 0, result.output
+    import json
+    cfg = json.loads((tmp_repo / ".contx" / "config.json").read_text())
+    summarizers = {tp.get("summarizer") for tp in cfg["tracked_paths"]}
+    assert "kubernetes" in summarizers
+    assert "github_actions" in summarizers
+    assert "docker_compose" in summarizers
+
+
+def test_init_yes_flag_skips_prompts(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.chdir(tmp_repo)
+    monkeypatch.setattr("contx.cli._is_tty", lambda: True)
+    # No input — should not block on a prompt thanks to -y
+    result = runner.invoke(app, ["init", "-y"])
+    assert result.exit_code == 0, result.output
+    import json
+    cfg = json.loads((tmp_repo / ".contx" / "config.json").read_text())
+    assert cfg["granularity"] == "both"
+    assert cfg["require_context_on_commit"] is True
+
+
+def test_init_non_tty_skips_prompts(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.chdir(tmp_repo)
+    monkeypatch.setattr("contx.cli._is_tty", lambda: False)
+    # No input — non-TTY suppresses prompts automatically
+    result = runner.invoke(app, ["init"])
+    assert result.exit_code == 0, result.output
+
+
+def test_init_no_hook_skips_hook_question(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.chdir(tmp_repo)
+    monkeypatch.setattr("contx.cli._is_tty", lambda: True)
+    # With --no-hook, hook question is skipped: 2 prompts left (granularity, deploys; enforcement is also skipped because no hook)
+    result = runner.invoke(app, ["init", "--no-hook"], input="\n\n")
+    assert result.exit_code == 0, result.output
+    hook = tmp_repo / ".git" / "hooks" / "pre-commit"
+    assert not hook.is_file()
+
