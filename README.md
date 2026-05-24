@@ -6,17 +6,98 @@ See `docs/specs/2026-05-21-contx-design.md` for the full design.
 
 ## Install
 
-One-command install (uses `pipx` if present, else a local venv):
+### TL;DR (if you already have Python 3.11+ and `pipx`)
 
 ```bash
-./install.sh           # just the CLI + MCP binaries
-./install.sh --all     # also installs the Claude Code skill + registers contx-mcp
+git clone <this-repo>
+cd contx
+./install.sh --all     # CLI binaries + Claude Code skill + MCP registration
 ```
 
-Or for development inside this repo:
+Done. Skip to **Quickstart**.
+
+---
+
+### Step-by-step (for fresh machines)
+
+#### 1. Python 3.11 or newer
+
+Check what you have:
 
 ```bash
+python3 --version    # need 3.11+
+```
+
+If you're below 3.11 or it's missing, install it:
+
+| OS | Install command |
+|---|---|
+| **macOS** (Homebrew) | `brew install python@3.12` |
+| **macOS** (no Homebrew yet) | install Homebrew from <https://brew.sh>, then `brew install python@3.12` |
+| **Ubuntu / Debian** | `sudo apt update && sudo apt install python3.12 python3.12-venv` |
+| **Fedora / RHEL** | `sudo dnf install python3.12` |
+| **Arch** | `sudo pacman -S python` |
+| **Windows** | install from <https://www.python.org/downloads/> (tick "Add Python to PATH" during setup) |
+
+Verify:
+
+```bash
+python3.12 --version    # or python3.11
+```
+
+#### 2. (Recommended) install `pipx`
+
+`pipx` puts CLI tools on your `PATH` in isolated environments so they don't clash with system Python. `contx`'s installer prefers it.
+
+```bash
+python3 -m pip install --user pipx
+python3 -m pipx ensurepath       # adds ~/.local/bin to PATH
+# Restart your shell or `source ~/.bashrc` / `source ~/.zshrc`
+pipx --version                    # confirm it's on PATH
+```
+
+If you skip this step the installer falls back to a local virtualenv inside the cloned repo — works fine, but `contx` won't be globally on `PATH` until you add `<repo>/.venv/bin` to it yourself.
+
+#### 3. Clone and install
+
+```bash
+git clone <this-repo>
+cd contx
+./install.sh --all
+```
+
+Flags:
+
+| Flag | What it does |
+|---|---|
+| `./install.sh` | Install just the `contx` and `contx-mcp` CLI binaries. |
+| `./install.sh --skill` | Also copy the Claude Code skill + `contx-*` slash commands to `~/.claude/`. |
+| `./install.sh --mcp` | Also register `contx-mcp` in `~/.claude/settings.json` (with a timestamped backup of any existing file). |
+| `./install.sh --all` | All of the above. **Recommended for first-time setup.** |
+| `./install.sh --help` | Show the full help. |
+
+#### 4. Verify
+
+```bash
+contx version           # prints "0.1.0"
+contx --help            # lists all subcommands
+```
+
+If `contx: command not found`, your shell hasn't picked up the new PATH entry yet — open a new terminal or `source ~/.zshrc` (or `~/.bashrc`).
+
+---
+
+### Development install (editable)
+
+If you're hacking on contx itself, skip the installer:
+
+```bash
+git clone <this-repo>
+cd contx
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -e .[dev]
+pytest                  # run the suite
 ```
 
 ### Uninstall
