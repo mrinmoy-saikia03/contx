@@ -19,6 +19,17 @@ Or for development inside this repo:
 pip install -e .[dev]
 ```
 
+### Uninstall
+
+```bash
+./uninstall.sh           # interactive: confirms each step
+./uninstall.sh --yes     # non-interactive (skip confirmations)
+```
+
+Reverses `install.sh`: removes the package (pipx or local venv), the Claude skill at `~/.claude/skills/contx/`, the `contx-*` slash commands at `~/.claude/commands/`, and the `contx` entry from `~/.claude/settings.json` (with a timestamped backup). `--keep-skill`, `--keep-mcp`, `--keep-package` opt out of individual steps.
+
+**Left alone on purpose:** your repos' `.contx/` directories, `.contxignore` files, and pre-commit hooks. Run `contx uninstall-hook` per repo first if you want those cleaned up too.
+
 ## Quickstart
 
 ```bash
