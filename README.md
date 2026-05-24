@@ -292,7 +292,25 @@ contx bootstrap-deploy
 
 Run this once when onboarding a repo that already has deployment manifests. The entries are then visible via `contx show`, `contx log`, and the MCP tools.
 
+## Diagrams
+
+`contx diagram` renders the repo's intent graph as a [draw.io](https://app.diagrams.net) XML file:
+
+```bash
+contx diagram                    # writes .contx/diagrams/files.drawio
+contx diagram --out my.drawio    # custom output path
+```
+
+The output file (`.contx/diagrams/files.drawio`) can be opened with:
+
+- **[app.diagrams.net](https://app.diagrams.net)** — paste/import the file in the browser
+- **VS Code** — [Draw.io Integration](https://marketplace.visualstudio.com/items?itemName=hediet.vscode-drawio) extension
+
+Each source file becomes a node, coloured by top-level directory. Tooltip shows the file intent. Edges come from `related` backlinks in entries. Layout is Fruchterman-Reingold force-directed (pure Python, no deps).
+
+`--type symbols` and `--type deploy` are reserved for future work; only `files` is implemented in this MVP.
+
 ## Status
 
-Plans 1–5 plus backlog items B1 (`.contxignore`), B2 (bootstrap), and B3 (deployment awareness) shipped: storage + CLI, MCP server, pre-commit hook, `contx draft`, Claude Code skill, local web UI, per-repo ignore file, brownfield bootstrap from AST + git history, and deployment-manifest summarizers. Remaining backlog items: B4 (diagrams), tuple-vs-list immutability on `Entry.tags`/`related`, SessionStart skill auto-load, `__main__.py` test coverage. See `docs/plans/` and `docs/BACKLOG.md`.
+Plans 1–5 plus backlog items B1 (`.contxignore`), B2 (bootstrap), B3 (deployment awareness), and B4 (diagrams) shipped: storage + CLI, MCP server, pre-commit hook, `contx draft`, Claude Code skill, local web UI, per-repo ignore file, brownfield bootstrap from AST + git history, deployment-manifest summarizers, and draw.io diagram export. Remaining backlog items: tuple-vs-list immutability on `Entry.tags`/`related`, SessionStart skill auto-load, `__main__.py` test coverage. See `docs/plans/` and `docs/BACKLOG.md`.
 
