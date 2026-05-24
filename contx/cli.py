@@ -147,6 +147,23 @@ def uninstall_hook_cmd() -> None:
     typer.echo("removed contx pre-commit hook")
 
 
+@app.command(name="ignore")
+def ignore_cmd(
+    pattern: str = typer.Argument(..., help="Gitignore-style pattern to add to .contxignore"),
+) -> None:
+    """Append a pattern to .contxignore (de-duplicates)."""
+    repo = _resolve_repo()
+    path = repo / ".contxignore"
+    existing = path.read_text().splitlines() if path.is_file() else []
+    if pattern.strip() in {ln.strip() for ln in existing}:
+        typer.echo(f"already present: {pattern}")
+        return
+    sep = "" if not existing or existing[-1] == "" else "\n"
+    with path.open("a") as f:
+        f.write(f"{sep}{pattern}\n")
+    typer.echo(f"appended {pattern} to {path.relative_to(repo)}")
+
+
 def _git_author(repo: Path) -> str:
     """Read the user.email from git config, falling back to 'unknown'."""
     import subprocess

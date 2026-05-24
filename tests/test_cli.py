@@ -457,6 +457,34 @@ def test_diagram_unsupported_type_errors(tmp_repo: Path, monkeypatch: pytest.Mon
     assert "not implemented" in result.output.lower() or "not yet" in result.output.lower()
 
 
+def test_ignore_appends_pattern(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.chdir(tmp_repo)
+    runner.invoke(app, ["init", "--no-bootstrap"])
+    result = runner.invoke(app, ["ignore", "vendor/**"])
+    assert result.exit_code == 0
+    content = (tmp_repo / ".contxignore").read_text()
+    assert "vendor/**" in content
+
+
+def test_ignore_does_not_duplicate(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.chdir(tmp_repo)
+    runner.invoke(app, ["init", "--no-bootstrap"])
+    runner.invoke(app, ["ignore", "vendor/**"])
+    runner.invoke(app, ["ignore", "vendor/**"])
+    content = (tmp_repo / ".contxignore").read_text()
+    assert content.count("vendor/**") == 1
+
+
+def test_ignore_creates_contxignore_if_missing(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.chdir(tmp_repo)
+    runner.invoke(app, ["init", "--no-bootstrap"])
+    (tmp_repo / ".contxignore").unlink()
+    result = runner.invoke(app, ["ignore", "tmp/**"])
+    assert result.exit_code == 0
+    assert (tmp_repo / ".contxignore").is_file()
+    assert "tmp/**" in (tmp_repo / ".contxignore").read_text()
+
+
 def test_bootstrap_deploy_writes_summaries(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
     import json
     monkeypatch.chdir(tmp_repo)
