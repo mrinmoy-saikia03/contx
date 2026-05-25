@@ -100,13 +100,9 @@ A:
 
 ## When the pre-commit hook blocks
 
-The user's repo has a pre-commit hook (installed by `contx init`) that blocks commits when staged code lacks paired context. If they hit this, tell them to run:
+The user's repo has a pre-commit hook (installed by `/contx-init`) that blocks commits when staged code lacks paired context. If they hit this, run `/contx-draft` right here in Claude Code.
 
-```
-contx draft --from-transcript
-```
-
-This opens an editor with rationales heuristically pre-filled from your recent conversation. They edit/save, and re-run `git commit`.
+`/contx-draft` reads the staged diff and your recent conversation, proposes a rationale for each drifted file, calls `contx_append` on accept, stages `.contx/`, and tells the user to re-run `git commit`.
 
 ## When NOT to call contx tools
 
@@ -117,6 +113,6 @@ This opens an editor with rationales heuristically pre-filled from your recent c
 
 ## Trust the user
 
-If the user says "skip context for this one" or "don't write contx for this fix," respect that. Tell them they can bypass the hook once with `git commit --no-verify`, or set `"require_context_on_commit": false` in `.contx/config.json` for a global soft-warn mode.
+If the user says "skip context for this one" or "don't write contx for this fix," respect that. Tell them they can bypass the hook once with `git commit --no-verify`, or set `"require_context_on_commit": false` in `.contx/config.json` for a global soft-warn mode. To remove the hook entirely, run `/contx-uninstall-hook`.
 
 The point of contx is to capture intent at the moment it exists — not to slow the user down. If they're certain it's not worth recording, that's their call.

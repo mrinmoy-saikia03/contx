@@ -113,33 +113,24 @@ Reverses `install.sh`: removes the package (pipx or local venv), the Claude skil
 
 ## Quickstart
 
-```bash
-contx init                    # interactive setup: prompts for hook, enforcement, granularity, deploy manifests
-contx init -y                 # accept all defaults (good for scripts/CI)
-contx append --ref src/foo.py::bar --event created --rationale "why this exists"
-contx show src/foo.py::bar
-contx log src/foo.py
+In Claude Code, type:
+
+```
+/contx-init
 ```
 
-`contx init` is interactive when stdin is a terminal. Pass `-y`/`--yes` to skip prompts, or `--no-hook` to skip the pre-commit hook question entirely. The settings you choose at init time are saved to `.contx/config.json` and can be edited later.
+This walks you through four prompts (hook? enforcement? granularity? deploy manifests?) and creates `.contx/`, `.contxignore`, and optionally the pre-commit hook.
+
+Then use the other slash commands to interact with contx — type `/contx-` in Claude Code to discover them all.
 
 ## CLI commands
 
 | Command | Purpose |
 |---|---|
-| `contx init` | Initialize contx for the current git repo (creates `.contx/config.json`). |
-| `contx append --ref X --event Y --rationale Z` | Add a context entry. `--event` is one of `created`, `modified`, `renamed_in`, `renamed_out`, `moved_in`, `moved_out`, `deleted`. Repeatable `--tag` and `--related`. |
-| `contx show <ref>` | Print the folded current intent for a file or symbol. |
-| `contx log <ref>` | Print the full append-only history. |
-| `contx draft [--from-transcript]` | Interactive editor for drifted files; appends entries and re-stages `.contx/`. |
-| `contx install-hook` / `contx uninstall-hook` | Install or remove the pre-commit hook (`contx init` installs it by default; use `init --no-hook` to skip). |
-| `contx install-skill` / `contx uninstall-skill` | Install or remove the Claude Code skill at `~/.claude/skills/contx/`. |
 | `contx serve [--port 4242] [--host 127.0.0.1] [--strict-port]` | Launch the read-only local web UI. |
-| `contx ignore <pattern>` | Append a gitignore-style pattern to `.contxignore` (deduplicates). |
-| `contx export --format markdown [--out PATH]` | Write a human-readable Markdown summary of the repo's intent map. |
 | `contx version` | Print version. |
 
-`<ref>` is either `path/to/file.py` (file-level) or `path/to/file.py::Class.method` (symbol-level).
+Every other workflow — init, append, show, log, draft, ignore, export, bootstrap, diagram, hook management — lives in a Claude Code slash command at `~/.claude/commands/contx-*.md`. Type `/contx-` in Claude Code to discover them.
 
 ## Using with Claude Code (MCP)
 
@@ -192,10 +183,10 @@ contx ships a Claude Code skill that enforces the workflow rules: query existing
 ### Install
 
 ```bash
-contx install-skill
+./install.sh --skill
 ```
 
-This copies `skills/contx/SKILL.md` to `~/.claude/skills/contx/`. Re-running the command updates to the latest version (overwrites). Override the destination with `CONTX_CLAUDE_HOME=/some/path contx install-skill` if you keep Claude config elsewhere.
+This copies `skills/contx/SKILL.md` to `~/.claude/skills/contx/` and all `skills/contx/commands/contx-*.md` to `~/.claude/commands/`. Re-running the command updates to the latest version (overwrites).
 
 ### What the skill enforces
 
@@ -206,19 +197,19 @@ When working in a repo with `.contx/`, Claude will:
 - Call `contx_delete` with a rationale when removing code.
 - Ask the user for the *why* if it isn't already clear in the conversation (never invent a rationale).
 
-The skill activates on the user's `/contx` invocation, or you can wire a SessionStart hook to load it automatically when `.contx/` is detected (not done by `install-skill` — that's intentional, to keep user-level Claude Code settings explicit).
+The skill activates on the user's `/contx` invocation, or you can wire a SessionStart hook to load it automatically when `.contx/` is detected.
 
 ### Uninstall
 
 ```bash
-contx uninstall-skill
+./uninstall.sh
 ```
 
-Removes `~/.claude/skills/contx/` (the contx skill directory only — other skills untouched).
+Removes `~/.claude/skills/contx/` and `~/.claude/commands/contx-*.md` (other skills and commands untouched).
 
 ## Pre-commit hook
 
-`contx init` installs a `pre-commit` hook in `.git/hooks/pre-commit` (use `--no-hook` to opt out). The hook blocks any commit where a tracked source file changed but its `.contx/` sidecar didn't.
+`/contx-init` installs a `pre-commit` hook in `.git/hooks/pre-commit` (choose "No" at the hook prompt to skip). The hook blocks any commit where a tracked source file changed but its `.contx/` sidecar didn't.
 
 Example:
 
@@ -227,35 +218,17 @@ $ git commit -m "fix the bug"
 error: contx drift — the following files changed without a matching .contx/ entry:
   - src/auth/login.py
 
-Fix: add a contx entry for each file, then re-stage and re-commit.
-Example:
-  contx append --ref src/auth/login.py --event modified --rationale 'why this changed'
-  git add .contx/
-  git commit
+Fix it from Claude Code:
+  /contx-draft        # propose entries from the staged diff + conversation
+  git commit          # re-run after .contx is auto-staged
 
-To bypass once: git commit --no-verify
-To disable enforcement: set 'require_context_on_commit': false in .contx/config.json
+Bypass once:    git commit --no-verify
+Disable entirely:  set 'require_context_on_commit': false in .contx/config.json
 ```
 
-### Fixing drift with `contx draft`
+### Fixing drift with `/contx-draft`
 
-When the hook blocks, run `contx draft`. It opens your `$EDITOR` (or `$VISUAL`, or `CONTX_EDITOR`) on a template with one section per drifted file. Fill in the `rationale:` line, save, exit — entries are appended to `.contx/` and re-staged. Then re-run `git commit`.
-
-```
-$ contx draft
-# (editor opens)
-# contx draft — fill in a rationale for each file, then save & exit.
-#
-# ## src/auth/login.py
-# event: modified
-# rationale: switched to email-only because GDPR
-# tags: compliance, gdpr
-#
-# (save & exit)
-appended 1 entries and staged .contx/. Run `git commit` again.
-```
-
-For a head start: `contx draft --from-transcript` heuristically mines the most recent Claude Code session transcript at `~/.claude/projects/<sanitized-cwd>/` and pre-fills each rationale with the most relevant sentence. Edit as needed before saving.
+When the hook blocks, run `/contx-draft` in Claude Code. It reads the staged diff and your recent conversation, proposes a rationale for each drifted file, and lets you accept / edit / skip. On accept, it calls `contx_append` and stages `.contx/`. Then re-run `git commit`.
 
 ### Bypass
 
@@ -264,8 +237,8 @@ For a head start: `contx draft --from-transcript` heuristically mines the most r
 
 ### Manage the hook
 
-- `contx install-hook` — install (or top up) the hook on a repo that wasn't `init`'d with it.
-- `contx uninstall-hook` — remove the contx block (preserves other content in the hook).
+- `/contx-install-hook` — install (or top up) the hook on a repo that wasn't initialized with it.
+- `/contx-uninstall-hook` — remove the contx block (preserves other content in the hook).
 
 ## Web UI
 
@@ -303,16 +276,22 @@ Affects: drift detection (pre-commit hook), `contx_audit`, and any future toolin
 
 ## Slash commands (Claude Code)
 
-`contx install-skill` also installs four slash commands at `~/.claude/commands/`. Each delegates to Claude — Claude reads the actual code and writes meaningful entries via the MCP tools.
+`./install.sh --skill` installs all slash commands at `~/.claude/commands/`. Each delegates to Claude — Claude reads the actual code and writes meaningful entries via the MCP tools. Type `/contx-` in Claude Code to discover them.
 
 | Command | What it does |
 |---|---|
+| `/contx-init` | Interactive setup: prompts for hook, enforcement, granularity, and deploy manifests. Creates `.contx/`, `.contxignore`, and optionally the pre-commit hook. |
+| `/contx-show <ref>` | Print the folded current intent for a file or symbol. |
+| `/contx-log <ref>` | Print the full append-only history for a file or symbol. |
+| `/contx-draft` | When the hook blocks, proposes rationales from the staged diff + conversation and calls `contx_append`. |
+| `/contx-ignore <pattern>` | Append a gitignore-style pattern to `.contxignore`. |
+| `/contx-export [--out PATH]` | Export the repo's intent map as a Markdown document. |
+| `/contx-install-hook` | Install (or top up) the pre-commit hook on an already-initialized repo. |
+| `/contx-uninstall-hook` | Remove the contx hook block (preserves other content in the hook). |
 | `/contx-bootstrap [glob]` | Walk the repo, decide which files/symbols warrant a v0 entry, and write meaningful rationales. Skips boilerplate. Marks files Claude couldn't infer with `pending-rationale`. |
 | `/contx-explain <ref>` | Improve or create the entry for `<file>` or `<file>::symbol`. Lifts the rationale from "what" to "why" — incident-anchored when possible. Asks you for business context when it can't infer. |
 | `/contx-diagram <type>` | Read the code, reason about architecture, generate a `.drawio` file directly. Types: `architecture`, `components`, `dataflow`, `deploy`. |
 | `/contx-deploy-summary` | Read all deployment manifests (k8s, GH Actions, docker-compose, terraform, helm) and write meaningful summaries — what each thing actually deploys, what it connects to, which secrets it consumes. |
-
-These replace the older mechanical `contx bootstrap`, `contx bootstrap-deploy`, and `contx diagram` CLI commands, which generated structurally-correct but semantically-empty output.
 
 ## Storage layout
 
@@ -351,5 +330,5 @@ The pre-commit hook and `contx audit` use these globs to detect drift on any tra
 
 ## Status
 
-Plans 1–5 plus backlog items B1–B4 shipped: storage + CLI, MCP server, pre-commit hook, `contx draft`, Claude Code skill, local web UI, per-repo ignore file. Slash commands (`/contx-bootstrap`, `/contx-explain`, `/contx-diagram`, `/contx-deploy-summary`) replace the former mechanical Python bootstrap/summarizers/diagram modules. Remaining backlog items: tuple-vs-list immutability on `Entry.tags`/`related`, SessionStart skill auto-load. See `docs/plans/` and `docs/BACKLOG.md`.
+Plans 1–5, B1–B4, and C1 shipped: storage + MCP server + pre-commit hook + Claude Code skill + local web UI + per-repo ignore file + full slash-command surface. The Python CLI is intentionally minimal (`serve` + `version`). All user-facing workflows live as Claude Code slash commands at `~/.claude/commands/contx-*.md`. See `docs/plans/` and `docs/BACKLOG.md`.
 
