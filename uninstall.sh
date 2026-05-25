@@ -84,15 +84,8 @@ if [ "$KEEP_SKILL" -eq 0 ]; then
 
   if [ "$HAS_SKILL" -eq 1 ]; then
     if confirm "remove Claude skill + contx-* slash commands from ~/.claude/?"; then
-      if command -v contx >/dev/null 2>&1; then
-        contx uninstall-skill >/dev/null || true
-      else
-        # Fallback: contx binary already gone — do it directly
-        rm -rf "$HOME/.claude/skills/contx"
-        for f in "$HOME"/.claude/commands/contx-*.md; do
-          [ -e "$f" ] && rm -f "$f"
-        done
-      fi
+      rm -rf "$HOME/.claude/skills/contx"
+      rm -f "$HOME/.claude/commands/contx-"*.md
       ok "removed skill + slash commands"
     fi
   else

@@ -93,8 +93,11 @@ ok "contx $("$CONTX_BIN" version) installed at $CONTX_BIN"
 
 # 4. Optional: Claude Code skill
 if [ "$WANT_SKILL" -eq 1 ]; then
-  say "installing Claude Code skill"
-  "$CONTX_BIN" install-skill
+  say "installing Claude Code skill and slash commands"
+  mkdir -p "$HOME/.claude/skills/contx" "$HOME/.claude/commands"
+  cp -f "$REPO_ROOT/skills/contx/SKILL.md" "$HOME/.claude/skills/contx/SKILL.md"
+  cp -f "$REPO_ROOT/skills/contx/commands/contx-"*.md "$HOME/.claude/commands/"
+  ok "skill + slash commands installed"
 fi
 
 # 5. Optional: MCP config registration
@@ -139,8 +142,7 @@ cat <<EOF
 $(ok 'contx installed.')
 
 Next steps in any git repo:
-  contx init       # creates .contx/, .contxignore, pre-commit hook
-  contx draft      # add context entries interactively
+  /contx-init      # from Claude Code — creates .contx/, .contxignore, pre-commit hook
   contx serve      # localhost:4242 — browse the intent map
 
 EOF
