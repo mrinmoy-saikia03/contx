@@ -3,9 +3,15 @@
 import os
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
+
+from contx.config import default_config, save_config
+from contx.entry import Entry
+from contx.hooks import install_pre_commit_hook
+from contx.store import append_entry
 
 
 def _git(repo: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess:
@@ -20,15 +26,26 @@ def _git(repo: Path, *args: str, check: bool = True) -> subprocess.CompletedProc
     )
 
 
-def _contx_bin() -> str:
-    """Locate the `contx` CLI binary in the same venv pytest is running in."""
-    venv_bin = Path(sys.executable).parent
-    return str(venv_bin / "contx")
+def _init_repo(repo: Path) -> None:
+    """Initialize contx (config + hook) using the Python API."""
+    save_config(repo, default_config())
+    install_pre_commit_hook(repo)
+
+
+def _append(repo: Path, file_path: str) -> None:
+    """Append a minimal entry for the given file."""
+    append_entry(repo, file_path, Entry(
+        id="01HTEST0000000000000000000",
+        kind="file", symbol=None, event="created",
+        rationale="test scaffold",
+        tags=[], author="test",
+        timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        agent="claude-code", related=[],
+    ))
 
 
 def test_real_commit_blocked_without_context(tmp_repo: Path):
-    contx = _contx_bin()
-    subprocess.run([contx, "init"], cwd=tmp_repo, check=True, capture_output=True)
+    _init_repo(tmp_repo)
 
     (tmp_repo / "src").mkdir()
     (tmp_repo / "src" / "foo.py").write_text("x = 1\n")
@@ -41,20 +58,11 @@ def test_real_commit_blocked_without_context(tmp_repo: Path):
 
 
 def test_real_commit_succeeds_with_context(tmp_repo: Path):
-    contx = _contx_bin()
-    subprocess.run([contx, "init"], cwd=tmp_repo, check=True, capture_output=True)
+    _init_repo(tmp_repo)
 
     (tmp_repo / "src").mkdir()
     (tmp_repo / "src" / "foo.py").write_text("x = 1\n")
-    subprocess.run(
-        [
-            contx, "append",
-            "--ref", "src/foo.py",
-            "--event", "created",
-            "--rationale", "test scaffold",
-        ],
-        cwd=tmp_repo, check=True, capture_output=True,
-    )
+    _append(tmp_repo, "src/foo.py")
     _git(tmp_repo, "add", "src/foo.py", ".contx/")
 
     result = _git(tmp_repo, "commit", "-m", "with context", check=False)
@@ -62,8 +70,7 @@ def test_real_commit_succeeds_with_context(tmp_repo: Path):
 
 
 def test_no_verify_bypasses_hook(tmp_repo: Path):
-    contx = _contx_bin()
-    subprocess.run([contx, "init"], cwd=tmp_repo, check=True, capture_output=True)
+    _init_repo(tmp_repo)
 
     (tmp_repo / "src").mkdir()
     (tmp_repo / "src" / "foo.py").write_text("x = 1\n")

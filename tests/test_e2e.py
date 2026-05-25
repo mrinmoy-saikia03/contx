@@ -1,62 +1,52 @@
-"""End-to-end test: simulate a full session using the CLI."""
+"""End-to-end: MCP server + storage primitives lifecycle."""
 
+import json
+from datetime import datetime, timezone
 from pathlib import Path
 
-import pytest
-from typer.testing import CliRunner
-
-from contx.cli import app
-
-runner = CliRunner()
+from contx.config import default_config, save_config
+from contx.entry import Entry
+from contx.store import append_entry, fold_entries, read_entries
 
 
-def test_full_lifecycle(tmp_repo: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.chdir(tmp_repo)
+def test_full_storage_lifecycle(tmp_repo: Path):
+    # Init
+    save_config(tmp_repo, default_config())
 
-    # init
-    r = runner.invoke(app, ["init"])
-    assert r.exit_code == 0
-    assert (tmp_repo / ".contx" / "config.json").is_file()
+    # File-level entry
+    append_entry(tmp_repo, "src/auth/login.py", Entry(
+        id="01HFILE0000000000000000000",
+        kind="file", symbol=None, event="created",
+        rationale="Auth module — owns SSO + email login",
+        tags=["module-purpose"], author="t@x",
+        timestamp=datetime(2026, 5, 21, tzinfo=timezone.utc),
+        agent="claude-code", related=[],
+    ))
 
-    # file-level entry
-    r = runner.invoke(app, [
-        "append", "--ref", "src/auth/login.py",
-        "--event", "created", "--rationale", "Auth module — owns SSO + email login",
-        "--tag", "module-purpose",
-    ])
-    assert r.exit_code == 0
+    # Symbol creation
+    append_entry(tmp_repo, "src/auth/login.py", Entry(
+        id="01HSYM10000000000000000000",
+        kind="symbol", symbol="User.authenticate", event="created",
+        rationale="Email-only because Legal said phone OTP fails GDPR",
+        tags=["compliance", "gdpr"], author="t@x",
+        timestamp=datetime(2026, 5, 21, tzinfo=timezone.utc),
+        agent="claude-code", related=[],
+    ))
 
-    # symbol creation
-    r = runner.invoke(app, [
-        "append", "--ref", "src/auth/login.py::User.authenticate",
-        "--event", "created",
-        "--rationale", "Email-only because Legal said phone OTP fails GDPR",
-        "--tag", "compliance", "--tag", "gdpr",
-    ])
-    assert r.exit_code == 0
+    # Symbol modified
+    append_entry(tmp_repo, "src/auth/login.py", Entry(
+        id="01HSYM20000000000000000000",
+        kind="symbol", symbol="User.authenticate", event="modified",
+        rationale="Added rate limit — May incident burst attack",
+        tags=["incident", "security"], author="t@x",
+        timestamp=datetime(2026, 5, 22, tzinfo=timezone.utc),
+        agent="claude-code", related=[],
+    ))
 
-    # symbol modified
-    r = runner.invoke(app, [
-        "append", "--ref", "src/auth/login.py::User.authenticate",
-        "--event", "modified",
-        "--rationale", "Added rate limit — May incident burst attack",
-        "--tag", "incident", "--tag", "security",
-    ])
-    assert r.exit_code == 0
+    entries = read_entries(tmp_repo, "src/auth/login.py")
+    assert len(entries) == 3
 
-    # show file
-    r = runner.invoke(app, ["show", "src/auth/login.py"])
-    assert r.exit_code == 0
-    assert "Auth module" in r.stdout
-    assert "User.authenticate" in r.stdout
-
-    # show symbol — latest rationale (modified) wins
-    r = runner.invoke(app, ["show", "src/auth/login.py::User.authenticate"])
-    assert r.exit_code == 0
-    assert "May incident" in r.stdout
-    assert "GDPR" not in r.stdout  # superseded by latest
-
-    # log symbol — both entries in order
-    r = runner.invoke(app, ["log", "src/auth/login.py::User.authenticate"])
-    assert r.exit_code == 0
-    assert r.stdout.index("GDPR") < r.stdout.index("May incident")
+    folded = fold_entries(entries)
+    assert "Auth module" in (folded.file_intent or "")
+    # Latest symbol rationale wins
+    assert "May incident" in folded.symbols["User.authenticate"]
