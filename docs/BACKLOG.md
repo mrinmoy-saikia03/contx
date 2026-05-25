@@ -17,6 +17,7 @@ Items deferred from spec/plans, with current status.
 - `__main__.py` coverage.
 - `contx ignore <pattern>` convenience command.
 - `contx export --format markdown`.
+- C1 — Collapse CLI to MCP + `serve` only. All workflows are now Claude Code slash commands.
 
 ## Deferred (intentional)
 
@@ -27,10 +28,6 @@ Items deferred from spec/plans, with current status.
 ### SessionStart auto-load for the Claude Code skill
 
 `contx install-skill` copies `SKILL.md` to `~/.claude/skills/contx/`. A SessionStart hook that detects `.contx/` in the project root and auto-loads the skill would close the loop, but requires modifying user-level Claude Code settings — kept explicit on purpose. Possible follow-up: `contx install-skill --auto-load` flag that writes the hook config.
-
-### LLM-based rationale extraction in `contx draft --from-transcript`
-
-Today this uses pure heuristics (sentence proximity to file mentions). An LLM call using the user's own `ANTHROPIC_API_KEY` would give higher-quality drafts. Adds a real dependency on a third-party API; only worth doing if heuristic drafts prove insufficient.
 
 ### Negation patterns in `.contxignore`
 
@@ -43,10 +40,6 @@ Mirror of `git blame` showing which contx entries reference a code region. Requi
 ### `contx_init` MCP tool
 
 Listed in the design spec §8.1 but skipped — the CLI `contx init` handles repo setup and there's no AI-driven workflow that needs it. Revisit if an MCP host wants to bootstrap a repo programmatically.
-
-### Wheel/PyPI install support for `contx install-skill`
-
-`_source_repo_root()` currently walks up from `contx.__file__` to find `skills/contx/SKILL.md`. Works for `pip install -e .`; a wheel install would need `skills/` in `package_data` and `importlib.resources` to locate. Not blocking until the project is published to PyPI.
 
 ## Captured but no plan yet
 
